@@ -8,3 +8,6 @@ data/google/*
 *.exit
 .idea/
 .vscode/
+/notebook-backup/
+/notebooks/*
+!/notebooks/README.md
