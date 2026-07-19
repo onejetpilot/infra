@@ -1,0 +1,231 @@
+name: ${COMPOSE_PROJECT_NAME:-hadoop-local-lab}
+
+x-hadoop-env: &hadoop-env
+  HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
+  HADOOP_HEAPSIZE_MAX: "1024"
+  HDFS_USER: m.razhin
+  HDFS_NAMENODE_USER: root
+  HDFS_DATANODE_USER: root
+
+x-service: &service
+  restart: unless-stopped
+  networks: [lab]
+
+services:
+  namenode:
+    <<: *service
+    build:
+      context: .
+      dockerfile: docker/hadoop/Dockerfile
+      args: { HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" }
+    hostname: namenode
+    command: ["/opt/lab/bin/hadoop-entrypoint.sh", "namenode"]
+    environment: *hadoop-env
+    ports: ["9870:9870"]
+    volumes:
+      - namenode-data:/data/dfs/name
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+      - ./scripts:/opt/lab/scripts:ro
+      - ./data:/opt/lab/data:ro
+      - ./sql:/opt/lab/sql:ro
+      - ./spark:/opt/lab/spark:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://namenode:9870/jmx?qry=Hadoop:service=NameNode,name=NameNodeStatus' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  datanode1:
+    <<: *service
+    build: { context: ., dockerfile: docker/hadoop/Dockerfile, args: { HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
+    hostname: datanode1
+    command: ["/opt/lab/bin/hadoop-entrypoint.sh", "datanode"]
+    environment: *hadoop-env
+    ports: ["9864:9864"]
+    volumes:
+      - datanode1-data:/data/dfs/data
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+    depends_on: { namenode: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://datanode1:9864/jmx >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  datanode2:
+    <<: *service
+    build: { context: ., dockerfile: docker/hadoop/Dockerfile, args: { HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
+    hostname: datanode2
+    command: ["/opt/lab/bin/hadoop-entrypoint.sh", "datanode"]
+    environment: *hadoop-env
+    ports: ["9865:9864"]
+    volumes:
+      - datanode2-data:/data/dfs/data
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+    depends_on: { namenode: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://datanode2:9864/jmx >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  postgres:
+    <<: *service
+    image: postgres:16.6-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-metastore}
+      POSTGRES_USER: ${POSTGRES_USER:-hive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+    ports: ["15432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  hive-metastore:
+    <<: *service
+    build: { context: ., dockerfile: docker/hive/Dockerfile, args: { HIVE_VERSION: "${HIVE_VERSION:-3.1.3}" } }
+    hostname: hive-metastore
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      HIVE_CUSTOM_CONF_DIR: /opt/hive/conf
+      HADOOP_USER_NAME: m.razhin
+      SERVICE_OPTS: >-
+        -Xmx1536m -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-metastore}
+        -Djavax.jdo.option.ConnectionUserName=${POSTGRES_USER:-hive}
+        -Djavax.jdo.option.ConnectionPassword=${POSTGRES_PASSWORD}
+    ports: ["9083:9083"]
+    volumes:
+      - ./config/hadoop/core-site.xml:/opt/hive/conf/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/opt/hive/conf/hdfs-site.xml:ro
+      - ./config/hive/hive-site.xml:/opt/hive/conf/hive-site.xml:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      namenode: { condition: service_healthy }
+      datanode1: { condition: service_healthy }
+      datanode2: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9083'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  hiveserver2:
+    <<: *service
+    build: { context: ., dockerfile: docker/hive/Dockerfile, args: { HIVE_VERSION: "${HIVE_VERSION:-3.1.3}" } }
+    hostname: hiveserver2
+    environment:
+      SERVICE_NAME: hiveserver2
+      IS_RESUME: "true"
+      HIVE_CUSTOM_CONF_DIR: /opt/hive/conf
+      HADOOP_USER_NAME: hive
+      SERVICE_OPTS: "-Xmx3072m -Dhive.metastore.uris=thrift://hive-metastore:9083"
+    ports: ["10001:10000", "10002:10002"]
+    volumes:
+      - ./config/hadoop/core-site.xml:/opt/hive/conf/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/opt/hive/conf/hdfs-site.xml:ro
+      - ./config/hive/hive-site.xml:/opt/hive/conf/hive-site.xml:ro
+      - ./sql:/opt/lab/sql:ro
+    depends_on: { hive-metastore: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/10000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 4G } } }
+
+  spark-master:
+    <<: *service
+    build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
+    hostname: spark-master
+    command: ["/opt/spark/sbin/start-master.sh", "--host", "spark-master", "--port", "7077", "--webui-port", "8080"]
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    ports: ["7077:7077", "8081:8080"]
+    volumes:
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+      - ./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro
+      - ./config/spark:/opt/spark/conf-extra:ro
+      - ./spark:/opt/lab/spark:ro
+    depends_on: { hive-metastore: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  spark-worker1:
+    <<: *service
+    build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
+    hostname: spark-worker1
+    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077", "--webui-port", "8081", "--cores", "4", "--memory", "6g"]
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    ports: ["8082:8081"]
+    volumes: ["./config/hadoop:/opt/hadoop/etc/hadoop:ro", "./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro"]
+    depends_on: { spark-master: { condition: service_healthy } }
+    deploy: { resources: { limits: { memory: 8G } } }
+
+  spark-worker2:
+    <<: *service
+    build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
+    hostname: spark-worker2
+    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077", "--webui-port", "8081", "--cores", "4", "--memory", "6g"]
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    ports: ["8083:8081"]
+    volumes: ["./config/hadoop:/opt/hadoop/etc/hadoop:ro", "./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro"]
+    depends_on: { spark-master: { condition: service_healthy } }
+    deploy: { resources: { limits: { memory: 8G } } }
+
+  zeppelin:
+    <<: *service
+    user: "0:0"
+    build:
+      context: .
+      dockerfile: docker/zeppelin/Dockerfile
+      args: { ZEPPELIN_VERSION: "${ZEPPELIN_VERSION:-0.11.2}", SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" }
+    hostname: zeppelin
+    command: ["bash", "-c", "cp /opt/lab/zeppelin/interpreter.json /opt/zeppelin/conf/interpreter.json && exec /opt/zeppelin/bin/zeppelin.sh"]
+    environment:
+      ZEPPELIN_ADDR: 0.0.0.0
+      ZEPPELIN_PORT: "8080"
+      ZEPPELIN_NOTEBOOK_DIR: /opt/zeppelin/notebook
+      SPARK_MASTER: spark://spark-master:7077
+      MASTER: spark://spark-master:7077
+      HADOOP_USER_NAME: m.razhin
+      SPARK_SUBMIT_OPTIONS: "--conf spark.sql.catalogImplementation=hive --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083"
+    ports: ["8080:8080"]
+    volumes:
+      - zeppelin-notebooks:/opt/zeppelin/notebook
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+      - ./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro
+      - ./config/zeppelin/interpreter.json:/opt/lab/zeppelin/interpreter.json:ro
+      - ./spark:/opt/lab/spark:ro
+      - ./sql:/opt/lab/sql:ro
+    depends_on:
+      spark-master: { condition: service_healthy }
+      hiveserver2: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/version >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 6G } } }
+
+networks:
+  lab: { name: hadoop-local-lab }
+
+volumes:
+  namenode-data:
+  datanode1-data:
+  datanode2-data:
+  postgres-data:
+  zeppelin-notebooks:
