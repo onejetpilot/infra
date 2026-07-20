@@ -1,3 +1,2 @@
-CREATE DATABASE IF NOT EXISTS m_razhin_db
-LOCATION 'hdfs://namenode:8020/user/m.razhin/hive';
-
+-- Databases are created per account by scripts/init-hive.sh from HDFS_USERS.
+-- Example: CREATE DATABASE student_db LOCATION '/user/student/hive';

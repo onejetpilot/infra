@@ -3,7 +3,8 @@ name: ${COMPOSE_PROJECT_NAME:-hadoop-local-lab}
 x-hadoop-env: &hadoop-env
   HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
   HADOOP_HEAPSIZE_MAX: "1024"
-  HDFS_USER: m.razhin
+  HDFS_USER: ${HDFS_USER:-student}
+  HDFS_USERS: ${HDFS_USERS:-${HDFS_USER:-student}}
   HDFS_NAMENODE_USER: root
   HDFS_DATANODE_USER: root
 
@@ -96,7 +97,7 @@ services:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
       HIVE_CUSTOM_CONF_DIR: /opt/hive/conf
-      HADOOP_USER_NAME: m.razhin
+      HADOOP_USER_NAME: ${HDFS_USER:-student}
       SERVICE_OPTS: >-
         -Xmx1536m -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
         -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-metastore}
@@ -128,6 +129,8 @@ services:
       IS_RESUME: "true"
       HIVE_CUSTOM_CONF_DIR: /opt/hive/conf
       HADOOP_USER_NAME: hive
+      HDFS_USER: ${HDFS_USER:-student}
+      HDFS_USERS: ${HDFS_USERS:-${HDFS_USER:-student}}
       SERVICE_OPTS: "-Xmx3072m -Dhive.metastore.uris=thrift://hive-metastore:9083"
     ports: ["10001:10000", "10002:10002"]
     volumes:
@@ -148,7 +151,7 @@ services:
     build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
     hostname: spark-master
     command: ["/opt/spark/sbin/start-master.sh", "--host", "spark-master", "--port", "7077", "--webui-port", "8080"]
-    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "${HDFS_USER:-student}", HDFS_USER: "${HDFS_USER:-student}" }
     ports: ["7077:7077", "8081:8080"]
     volumes:
       - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
@@ -168,7 +171,7 @@ services:
     build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
     hostname: spark-worker1
     command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077", "--webui-port", "8081", "--cores", "4", "--memory", "6g"]
-    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "${HDFS_USER:-student}", HDFS_USER: "${HDFS_USER:-student}" }
     ports: ["8082:8081"]
     volumes: ["./config/hadoop:/opt/hadoop/etc/hadoop:ro", "./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro"]
     depends_on: { spark-master: { condition: service_healthy } }
@@ -179,7 +182,7 @@ services:
     build: { context: ., dockerfile: docker/spark/Dockerfile, args: { SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" } }
     hostname: spark-worker2
     command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077", "--webui-port", "8081", "--cores", "4", "--memory", "6g"]
-    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "m.razhin" }
+    environment: { SPARK_NO_DAEMONIZE: "true", HADOOP_USER_NAME: "${HDFS_USER:-student}", HDFS_USER: "${HDFS_USER:-student}" }
     ports: ["8083:8081"]
     volumes: ["./config/hadoop:/opt/hadoop/etc/hadoop:ro", "./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro"]
     depends_on: { spark-master: { condition: service_healthy } }
@@ -193,14 +196,15 @@ services:
       dockerfile: docker/zeppelin/Dockerfile
       args: { ZEPPELIN_VERSION: "${ZEPPELIN_VERSION:-0.11.2}", SPARK_VERSION: "${SPARK_VERSION:-3.5.5}", HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}" }
     hostname: zeppelin
-    command: ["bash", "-c", "cp /opt/lab/zeppelin/interpreter.json /opt/zeppelin/conf/interpreter.json && exec /opt/zeppelin/bin/zeppelin.sh"]
+    command: ["bash", "-c", "sed 's/__HDFS_USER__/'\"$$HDFS_USER\"'/g' /opt/lab/zeppelin/interpreter.json > /opt/zeppelin/conf/interpreter.json && exec /opt/zeppelin/bin/zeppelin.sh"]
     environment:
       ZEPPELIN_ADDR: 0.0.0.0
       ZEPPELIN_PORT: "8080"
       ZEPPELIN_NOTEBOOK_DIR: /opt/zeppelin/notebook
       SPARK_MASTER: spark://spark-master:7077
       MASTER: spark://spark-master:7077
-      HADOOP_USER_NAME: m.razhin
+      HADOOP_USER_NAME: ${HDFS_USER:-student}
+      HDFS_USER: ${HDFS_USER:-student}
       SPARK_SUBMIT_OPTIONS: "--conf spark.sql.catalogImplementation=hive --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083"
     ports: ["8080:8080"]
     volumes:

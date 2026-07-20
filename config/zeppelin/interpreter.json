@@ -38,7 +38,7 @@
       "group": "jdbc",
       "properties": {
         "default.url": "jdbc:hive2://hiveserver2:10000/default",
-        "default.user": "m.razhin",
+        "default.user": "__HDFS_USER__",
         "default.password": "",
         "default.driver": "org.apache.hive.jdbc.HiveDriver"
       },

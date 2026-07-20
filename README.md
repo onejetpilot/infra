@@ -2,25 +2,49 @@
 
 Стенд поднимает HDFS (1 NameNode + 2 DataNode), PostgreSQL, Hive Metastore и HiveServer2, Spark Standalone (master + 2 worker) и Zeppelin. Все версии фиксированы; HDFS, Metastore и ноутбуки используют постоянные volumes.
 
-## Требования и версии
+## Минимальные требования
 
-- Windows 11, WSL2, запущенный Docker Desktop в Linux containers mode, Compose v2.
-- Рекомендуется выделить Docker 40–48 ГБ RAM, не менее 8 CPU и 30 ГБ диска.
+- 64-битная Windows 10/11 с WSL2 либо Linux.
+- Docker Desktop в режиме Linux containers или Docker Engine с Docker Compose v2.
+- Git 2.30+ и Git LFS 3+ для получения Parquet-файлов из каталога `data`.
+- Минимум 4 CPU, 16 ГБ RAM, выделенных Docker, и 25 ГБ свободного места.
+- Свободные локальные порты: `7077`, `8080`–`8083`, `9083`, `9864`, `9865`,
+  `9870`, `10001`, `10002` и `15432`.
+- Доступ в интернет при первой сборке для скачивания Docker-образов и дистрибутивов.
+
+На минимальной конфигурации Spark-задачи следует запускать последовательно. Для комфортной
+работы рекомендуется 8 CPU, 40–48 ГБ RAM для Docker и не менее 30 ГБ свободного места.
+Исходные данные занимают около 441 MiB, но дополнительно требуется место для образов,
+постоянных Docker volumes и двух HDFS-реплик.
+
+## Версии компонентов
+
 - Hadoop 3.3.6, Hive 3.1.3, Spark 3.5.5, Zeppelin 0.11.2, PostgreSQL 16.6, Java 11.
 
 Spark 3.5 поддерживает remote Hive Metastore 3.1.3, Zeppelin 0.11.2 — Spark 3.2–3.5. Hive 3.1.3 снят с upstream-поддержки, но выбран как последнее совместимое пересечение для этого учебного стека. HDFS 3.3.6 и клиенты Hadoop 3 совместимы по протоколу. Стенд намеренно не включает YARN, Tez, ZooKeeper и HA.
 
 ## Запуск
 
+Для первого клонирования установите Git LFS и убедитесь, что файлы данных скачаны:
+
+```bash
+git lfs install
+git clone <URL_РЕПОЗИТОРИЯ>
+cd infra
+git lfs pull
+```
+
 ```bash
 cp .env.example .env
-# Измените POSTGRES_PASSWORD
+# Задайте POSTGRES_PASSWORD, основной HDFS_USER и список HDFS_USERS
 docker compose up -d --build
 make init
+make upload
 make test
 ```
 
-PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --build`, `./powershell/init-lab.ps1`, `./powershell/smoke-test.ps1`.
+PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --build`,
+`./powershell/init-lab.ps1`, `./powershell/upload-data.ps1`, `./powershell/smoke-test.ps1`.
 
 Состояние и логи: `docker compose ps`, `docker compose logs -f [service]`. Два узла проверяются через `docker compose exec namenode hdfs dfsadmin -report`.
 
@@ -37,19 +61,59 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 
 ## HDFS и загрузка
 
-```bash
-docker compose exec namenode hdfs dfs -ls /
-docker compose exec namenode hdfs dfs -du -s -h /user/m.razhin/ebay
-docker compose exec namenode hdfs dfs -setrep -R -w 2 /user/m.razhin/ebay
-docker compose exec namenode hdfs dfs -cp /user/m.razhin/ebay/a /user/m.razhin/ebay/b
+`HDFS_USER` задаёт основной аккаунт для Spark, Zeppelin и тестов. `HDFS_USERS` — список
+аккаунтов через запятую, например `anna,ivan,petr`. Команда `make init` создаёт каждому
+отдельные каталоги `/user/<логин>` и Hive-БД `<логин>_db`; точки и дефисы в имени БД
+заменяются подчёркиваниями. `make upload` копирует исходные наборы каждому аккаунту.
+
+Пример `.env` для трёх участников:
+
+```dotenv
+HDFS_USER=anna
+HDFS_USERS=anna,ivan,petr
 ```
 
-Положите файлы в `data/ebay`, `data/yandex`, `data/google`, затем `make upload` или `./powershell/upload-data.ps1`. Пустые каталоги пропускаются. Повторная загрузка блокируется; замена: `OVERWRITE=true make upload` либо PowerShell с `-Overwrite`. Для физической проверки используйте `hdfs fsck /path -files -blocks -locations`.
+После запуска будут созданы:
+
+```text
+/user/anna/{ebay,yandex,google,hive,...}  -> anna_db
+/user/ivan/{ebay,yandex,google,hive,...}  -> ivan_db
+/user/petr/{ebay,yandex,google,hive,...}  -> petr_db
+```
+
+Допустимы латинские буквы, цифры, точки, дефисы и подчёркивания; логин должен начинаться
+с буквы. `HDFS_USER` должен присутствовать в `HDFS_USERS`, поскольку этот аккаунт используют
+Spark, Zeppelin и smoke-тесты.
+
+Чтобы добавить участника позднее, допишите его логин в `HDFS_USERS`, пересоздайте контейнеры
+для применения окружения и повторите инициализацию:
+
+```bash
+docker compose up -d
+make init
+make upload
+```
+
+Уже заполненные каталоги при обычной загрузке пропускаются, поэтому данные будут скопированы
+только новому пользователю. Для полной замены данных у всех пользователей используйте
+`OVERWRITE=true make upload`; в PowerShell — `./powershell/upload-data.ps1 -Overwrite`.
+
+```bash
+docker compose exec namenode hdfs dfs -ls /
+docker compose exec namenode hdfs dfs -du -s -h /user/student/ebay
+docker compose exec namenode hdfs dfs -setrep -R -w 2 /user/student/ebay
+docker compose exec namenode hdfs dfs -cp /user/student/ebay/a /user/student/ebay/b
+```
+
+Parquet-файлы в `data/ebay`, `data/yandex`, `data/google` хранятся в Git LFS и при корректно
+установленном Git LFS скачиваются вместе с репозиторием. Если вместо Parquet получены маленькие
+текстовые pointer-файлы, выполните `git lfs install` и `git lfs pull`. Пустые наборы при загрузке
+пропускаются. Для физической проверки используйте `hdfs fsck /path -files -blocks -locations`.
 
 ## Hive
 
 ```bash
-docker compose exec hiveserver2 beeline -u 'jdbc:hive2://localhost:10000/default' -n m.razhin
+docker compose exec hiveserver2 beeline -u 'jdbc:hive2://localhost:10000/default' -n student
 ```
 
 Работают `SHOW DATABASES`, `SHOW PARTITIONS`, `MSCK REPAIR TABLE`, `DESCRIBE FORMATTED`. Схема eBay неизвестна, поэтому SQL `02`–`04` — неисполняемые шаблоны. Получите схему:
@@ -73,6 +137,8 @@ Spark использует Hive catalog, общий remote Metastore и HDFS war
 ## Типовые ошибки
 
 - `Permission denied`: повторите `make init`; используются владелец/группа и режимы, не `777`.
+- В `data` находятся маленькие LFS pointer-файлы: выполните `git lfs install` и `git lfs pull`.
+- Новый пользователь не появился: проверьте `HDFS_USERS`, выполните `docker compose up -d`, затем `make init` и `make upload`.
 - Hive недоступен: проверьте `docker compose ps` и логи `postgres`, `hive-metastore`, `hiveserver2`.
 - Spark не видит таблицы: проверьте `hive.metastore.uris` и `hive-site.xml` в Spark.
 - Репликация не равна 2: оба DataNode должны быть healthy; используйте `dfsadmin -report` и `fsck`.

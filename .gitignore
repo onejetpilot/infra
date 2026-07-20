@@ -1,8 +1,4 @@
 .env
-data/ebay/*
-data/yandex/*
-data/google/*
-!data/**/.gitkeep
 *.log
 *.err
 *.exit

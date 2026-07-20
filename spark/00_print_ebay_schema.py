@@ -1,5 +1,6 @@
+import os
 from pyspark.sql import SparkSession
 spark = SparkSession.builder.appName("print-ebay-schema").enableHiveSupport().getOrCreate()
-spark.read.parquet("hdfs://namenode:8020/user/m.razhin/ebay").printSchema()
+user = os.environ.get("HDFS_USER", "student")
+spark.read.parquet(f"hdfs://namenode:8020/user/{user}/ebay").printSchema()
 spark.stop()
-
