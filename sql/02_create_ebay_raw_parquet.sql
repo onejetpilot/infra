@@ -2,5 +2,5 @@
 -- CREATE EXTERNAL TABLE <USER_DB>.ebay_raw_parquet (
 --   <REAL_COLUMNS_HERE>
 -- ) PARTITIONED BY (snapshot_dt DATE)
--- STORED AS PARQUET LOCATION 'hdfs://namenode:8020/user/<USER>/ebay';
+-- STORED AS PARQUET LOCATION 'hdfs://namenode:8020/data/raw/ebay';
 -- MSCK REPAIR TABLE <USER_DB>.ebay_raw_parquet;

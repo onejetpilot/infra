@@ -2,7 +2,11 @@
 set -euo pipefail
 users_csv="${HDFS_USERS:-${HDFS_USER:-student}}"
 until hdfs dfsadmin -safemode get 2>/dev/null | grep -q OFF; do sleep 2; done
-hdfs dfs -mkdir -p /user /user/hive/warehouse
+hdfs dfs -mkdir -p /user /user/hive/warehouse /data/raw
+hdfs dfs -mkdir -p /data/raw/ebay /data/raw/yndx_metrica/parquet /data/raw/google_analytics
+hdfs dfs -chown -R root:supergroup /data
+hdfs dfs -chmod 0555 /data /data/raw
+hdfs dfs -chmod -R 0555 /data/raw
 hdfs dfs -mkdir -p /tmp /tmp/hive
 IFS=',' read -ra users <<< "$users_csv"
 for raw_user in "${users[@]}"; do
@@ -10,7 +14,7 @@ for raw_user in "${users[@]}"; do
   [[ "$user" =~ ^[a-zA-Z][a-zA-Z0-9._-]*$ ]] || { echo "ERROR: invalid HDFS user: $raw_user" >&2; exit 2; }
   base="/user/$user"
   hdfs dfs -mkdir -p "$base"
-  for dir in ebay yandex google hive ebay_listings_optimized ebay_snowflake; do hdfs dfs -mkdir -p "$base/$dir"; done
+  for dir in hive ebay_listings_optimized ebay_snowflake; do hdfs dfs -mkdir -p "$base/$dir"; done
   hdfs dfs -chown -R "$user:supergroup" "$base"
   hdfs dfs -chmod 0750 "$base"
   hdfs dfs -chmod -R u+rwX,g+rX,o-rwx "$base"

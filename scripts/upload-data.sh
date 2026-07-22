@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
-users_csv="${HDFS_USERS:-${HDFS_USER:-student}}"; overwrite="${OVERWRITE:-false}"
-IFS=',' read -ra users <<< "$users_csv"
-for raw_user in "${users[@]}"; do
- user="${raw_user//[[:space:]]/}"
- [[ "$user" =~ ^[a-zA-Z][a-zA-Z0-9._-]*$ ]] || { echo "ERROR: invalid HDFS user: $raw_user" >&2; exit 2; }
- for dataset in ebay yandex google; do
-  src="/opt/lab/data/$dataset"; dst="/user/$user/$dataset"
+overwrite="${OVERWRITE:-false}"
+hdfs dfs -mkdir -p /data/raw
+declare -A targets=(
+  [ebay]="/data/raw/ebay"
+  [yandex]="/data/raw/yndx_metrica/parquet"
+  [google]="/data/raw/google_analytics"
+)
+for dataset in ebay yandex google; do
+  src="/opt/lab/data/$dataset"; dst="${targets[$dataset]}"
+  hdfs dfs -mkdir -p "$dst"
   mapfile -d '' files < <(find "$src" -type f ! -name .gitkeep -print0)
   if (( ${#files[@]} == 0 )); then echo "INFO: data/$dataset пуст, пропуск"; continue; fi
   existing="$(hdfs dfs -ls -R "$dst" 2>/dev/null | awk '$1 ~ /^-/ { print; exit }' || true)"
@@ -20,8 +23,10 @@ for raw_user in "${users[@]}"; do
   shopt -s nullglob
   entries=("$src"/*)
   hdfs dfs -put "${entries[@]}" "$dst/"
-  hdfs dfs -chown -R "$user:supergroup" "$dst"
- done
- hdfs dfs -setrep -R -w 2 "/user/$user/ebay"
- hdfs dfs -ls -R "/user/$user"
+  hdfs dfs -chown -R root:supergroup "$dst"
+  hdfs dfs -chmod -R 0555 "$dst"
+  hdfs dfs -setrep -R -w 2 "$dst"
 done
+hdfs dfs -chown -R root:supergroup /data
+hdfs dfs -chmod 0555 /data /data/raw
+hdfs dfs -ls -R /data/raw

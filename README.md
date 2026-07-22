@@ -66,7 +66,8 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 `HDFS_USER` задаёт основной аккаунт для Spark, Zeppelin и тестов. `HDFS_USERS` — список
 аккаунтов через запятую, например `anna,ivan,petr`. Команда `make init` создаёт каждому
 отдельные каталоги `/user/<логин>` и Hive-БД `<логин>_db`; точки и дефисы в имени БД
-заменяются подчёркиваниями. `make upload` копирует исходные наборы каждому аккаунту.
+заменяются подчёркиваниями. Исходные наборы загружаются один раз в общий raw-слой
+`/data/raw/<dataset>` и доступны всем участникам только для чтения.
 
 Пример `.env` для трёх участников:
 
@@ -78,9 +79,12 @@ HDFS_USERS=anna,ivan,petr
 После запуска будут созданы:
 
 ```text
-/user/anna/{ebay,yandex,google,hive,...}  -> anna_db
-/user/ivan/{ebay,yandex,google,hive,...}  -> ivan_db
-/user/petr/{ebay,yandex,google,hive,...}  -> petr_db
+/data/raw/ebay                            -> общие исходные данные eBay
+/data/raw/yndx_metrica/parquet            -> общие исходные данные Yandex
+/data/raw/google_analytics                -> общие исходные данные Google
+/user/anna/{hive,ebay_listings_optimized,ebay_snowflake} -> anna_db
+/user/ivan/{hive,ebay_listings_optimized,ebay_snowflake} -> ivan_db
+/user/petr/{hive,ebay_listings_optimized,ebay_snowflake} -> petr_db
 ```
 
 Допустимы латинские буквы, цифры, точки, дефисы и подчёркивания; логин должен начинаться
@@ -93,24 +97,28 @@ Spark, Zeppelin и smoke-тесты.
 ```bash
 docker compose up -d
 make init
-make upload
 ```
 
-Уже заполненные каталоги при обычной загрузке пропускаются, поэтому данные будут скопированы
-только новому пользователю. Для полной замены данных у всех пользователей используйте
+Добавление пользователя не копирует raw-данные повторно. `make upload` нужен только при первой
+загрузке или обновлении локального каталога `data`. Уже заполненные raw-каталоги при обычной
+загрузке пропускаются. Для полной замены данных только в HDFS используйте
 `OVERWRITE=true make upload`; в PowerShell — `./powershell/upload-data.ps1 -Overwrite`.
+Эти команды никогда не удаляют локальные файлы из каталога `data`.
 
 ```bash
 docker compose exec namenode hdfs dfs -ls /
-docker compose exec namenode hdfs dfs -du -s -h /user/student/ebay
-docker compose exec namenode hdfs dfs -setrep -R -w 2 /user/student/ebay
-docker compose exec namenode hdfs dfs -cp /user/student/ebay/a /user/student/ebay/b
+docker compose exec namenode hdfs dfs -du -s -h /data/raw/ebay
+docker compose exec namenode hdfs dfs -ls /data/raw/ebay
+docker compose exec namenode hdfs dfs -ls /user/student
 ```
 
 Parquet-файлы в `data/ebay`, `data/yandex`, `data/google` хранятся в Git LFS и при корректно
 установленном Git LFS скачиваются вместе с репозиторием. Если вместо Parquet получены маленькие
 текстовые pointer-файлы, выполните `git lfs install` и `git lfs pull`. Пустые наборы при загрузке
-пропускаются. Для физической проверки используйте `hdfs fsck /path -files -blocks -locations`.
+пропускаются. Загрузчик копирует их в `/data/raw/ebay`, `/data/raw/yndx_metrica/parquet`
+и `/data/raw/google_analytics`,
+назначает владельца `root:supergroup`, права только на чтение и replication factor `2`.
+Для физической проверки используйте `hdfs fsck /path -files -blocks -locations`.
 
 ## Hive
 
