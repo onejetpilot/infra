@@ -1,4 +1,4 @@
-.PHONY: up down status logs init upload test reset
+.PHONY: up down status logs init upload jupyter test reset
 up:
 	docker compose up -d --build
 down:
@@ -12,6 +12,8 @@ init:
 	docker compose exec -T hiveserver2 bash /opt/lab/scripts/init-hive.sh
 upload:
 	docker compose exec -T namenode bash /opt/lab/scripts/upload-data.sh
+jupyter:
+	docker compose up -d --build jupyter
 test:
 	bash scripts/smoke-test.sh
 reset:

@@ -1,5 +1,5 @@
 ARG SPARK_VERSION=3.5.5
-FROM eclipse-temurin:11-jre-jammy
+FROM eclipse-temurin:11-jre-jammy AS spark-base
 ARG SPARK_VERSION
 ARG HADOOP_VERSION=3.3.6
 ARG HIVE_VERSION=3.1.3
@@ -17,3 +17,13 @@ ENV SPARK_HOME=/opt/spark HADOOP_HOME=/opt/hadoop HADOOP_CONF_DIR=/opt/hadoop/et
 COPY config/spark/spark-defaults.conf /opt/spark/conf/spark-defaults.conf
 COPY config/spark/log4j2.properties /opt/spark/conf/log4j2.properties
 ENTRYPOINT ["/usr/bin/tini", "--"]
+
+FROM spark-base AS jupyter
+ARG JUPYTERLAB_VERSION=4.2.5
+RUN python3 -m pip install --no-cache-dir "jupyterlab==${JUPYTERLAB_VERSION}" "httpx<0.28" \
+ && python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')" \
+ && py4j_zip="$(find /opt/spark/python/lib -name 'py4j-*.zip' -print -quit)" \
+ && printf '/opt/spark/python\n%s\n' "$py4j_zip" > "$python_site/pyspark.pth"
+
+# Keep the default Spark image free of notebook dependencies.
+FROM spark-base AS runtime

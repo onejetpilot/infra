@@ -188,6 +188,57 @@ services:
     depends_on: { spark-master: { condition: service_healthy } }
     deploy: { resources: { limits: { memory: 8G } } }
 
+  jupyter:
+    <<: *service
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile
+      target: jupyter
+      args:
+        SPARK_VERSION: "${SPARK_VERSION:-3.5.5}"
+        HADOOP_VERSION: "${HADOOP_VERSION:-3.3.6}"
+        JUPYTERLAB_VERSION: "${JUPYTERLAB_VERSION:-4.2.5}"
+    hostname: jupyter
+    working_dir: /opt/lab/notebooks
+    command:
+      - bash
+      - -c
+      - >-
+        getent passwd "$$HADOOP_USER_NAME" >/dev/null ||
+        useradd --badname --no-create-home --shell /usr/sbin/nologin "$$HADOOP_USER_NAME";
+        exec python3 -m jupyter lab
+        --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+        --ServerApp.root_dir=/opt/lab/notebooks
+        --IdentityProvider.token="$$JUPYTER_TOKEN"
+    environment:
+      HADOOP_USER_NAME: ${HDFS_USER:-student}
+      HDFS_USER: ${HDFS_USER:-student}
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-local-lab}
+      PYSPARK_SUBMIT_ARGS: >-
+        --master spark://spark-master:7077
+        --conf spark.driver.host=jupyter
+        --conf spark.driver.bindAddress=0.0.0.0
+        --conf spark.sql.catalogImplementation=hive
+        --conf spark.hadoop.hive.metastore.uris=thrift://hive-metastore:9083
+        --conf spark.hadoop.hadoop.user.group.static.mapping.overrides=${HDFS_USER:-student}=supergroup;hive=supergroup
+        pyspark-shell
+    ports: ["8888:8888"]
+    volumes:
+      - ./notebooks:/opt/lab/notebooks
+      - ./config/hadoop:/opt/hadoop/etc/hadoop:ro
+      - ./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro
+      - ./spark:/opt/lab/spark:ro
+      - ./sql:/opt/lab/sql:ro
+    depends_on:
+      spark-master: { condition: service_healthy }
+      hiveserver2: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS \"http://localhost:8888/api/status?token=$$JUPYTER_TOKEN\" >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 4G } } }
+
   zeppelin:
     <<: *service
     user: "0:0"

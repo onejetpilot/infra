@@ -8,7 +8,7 @@
 - Docker Desktop в режиме Linux containers или Docker Engine с Docker Compose v2.
 - Git 2.30+ и Git LFS 3+ для получения Parquet-файлов из каталога `data`.
 - Минимум 4 CPU, 16 ГБ RAM, выделенных Docker, и 25 ГБ свободного места.
-- Свободные локальные порты: `7077`, `8080`–`8083`, `9083`, `9864`, `9865`,
+- Свободные локальные порты: `7077`, `8080`–`8083`, `8888`, `9083`, `9864`, `9865`,
   `9870`, `10001`, `10002` и `15432`.
 - Доступ в интернет при первой сборке для скачивания Docker-образов и дистрибутивов.
 
@@ -19,7 +19,8 @@
 
 ## Версии компонентов
 
-- Hadoop 3.3.6, Hive 3.1.3, Spark 3.5.5, Zeppelin 0.11.2, PostgreSQL 16.6, Java 11.
+- Hadoop 3.3.6, Hive 3.1.3, Spark 3.5.5, Zeppelin 0.11.2, JupyterLab 4.2.5,
+  PostgreSQL 16.6, Java 11.
 
 Spark 3.5 поддерживает remote Hive Metastore 3.1.3, Zeppelin 0.11.2 — Spark 3.2–3.5. Hive 3.1.3 снят с upstream-поддержки, но выбран как последнее совместимое пересечение для этого учебного стека. HDFS 3.3.6 и клиенты Hadoop 3 совместимы по протоколу. Стенд намеренно не включает YARN, Tez, ZooKeeper и HA.
 
@@ -53,6 +54,7 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 | Сервис | Адрес |
 |---|---|
 | Zeppelin | http://localhost:8080 |
+| JupyterLab | http://localhost:8888 |
 | NameNode | http://localhost:9870 |
 | DataNode 1 / 2 | http://localhost:9864 / http://localhost:9865 |
 | Spark Master / workers | http://localhost:8081 / 8082 / 8083 |
@@ -134,11 +136,52 @@ docker compose exec spark-master spark-submit --master spark://spark-master:7077
 
 Spark использует Hive catalog, общий remote Metastore и HDFS warehouse. ETL-заготовки намеренно требуют реального mapping полей. В Zeppelin используйте `%sh`, `%spark.pyspark` и `%jdbc` (prefix `default`). Notes лежат в volume `zeppelin-notebooks`; проверьте сохранение созданием note и `docker compose restart zeppelin`.
 
+## JupyterLab
+
+JupyterLab использует тот же Spark 3.5.5, Hive Metastore и HDFS, что и остальные сервисы.
+Ноутбуки сохраняются на хосте в каталоге `notebooks`, поэтому не исчезают при пересоздании
+контейнера. Каталог примонтирован внутрь контейнера как `/opt/lab/notebooks`.
+
+Задайте непустой токен в `.env`:
+
+```dotenv
+JUPYTER_TOKEN=change-me-local-only
+```
+
+При общем `docker compose up -d --build` JupyterLab запускается вместе со всем стендом.
+Для отдельного запуска или пересборки используйте:
+
+```bash
+make jupyter
+# либо
+docker compose up -d --build jupyter
+```
+
+Проверьте состояние и откройте интерфейс:
+
+```bash
+docker compose ps jupyter
+docker compose logs -f jupyter
+```
+
+Адрес: `http://localhost:8888`. Введите значение `JUPYTER_TOKEN` на странице входа.
+Пример первой PySpark-ячейки находится в `notebooks/README.md`. Настройки master,
+Hive Metastore и HDFS уже передаются контейнеру; вручную устанавливать Java или PySpark
+на Windows не требуется.
+
+Для остановки только JupyterLab:
+
+```bash
+docker compose stop jupyter
+```
+
 ## Типовые ошибки
 
 - `Permission denied`: повторите `make init`; используются владелец/группа и режимы, не `777`.
 - В `data` находятся маленькие LFS pointer-файлы: выполните `git lfs install` и `git lfs pull`.
 - Новый пользователь не появился: проверьте `HDFS_USERS`, выполните `docker compose up -d`, затем `make init` и `make upload`.
+- JupyterLab не открывается: проверьте `docker compose ps jupyter`, логи контейнера и свободен ли порт `8888`.
+- JupyterLab запрашивает token: используйте значение `JUPYTER_TOKEN` из `.env`.
 - Hive недоступен: проверьте `docker compose ps` и логи `postgres`, `hive-metastore`, `hiveserver2`.
 - Spark не видит таблицы: проверьте `hive.metastore.uris` и `hive-site.xml` в Spark.
 - Репликация не равна 2: оба DataNode должны быть healthy; используйте `dfsadmin -report` и `fsck`.

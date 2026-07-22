@@ -16,5 +16,7 @@ Test-Step '8-10. HiveServer2/DDL' { docker compose exec -T hiveserver2 bash -c '
 Test-Step '11-14. Spark/HDFS/HMS/Parquet' { docker compose exec -T spark-master spark-submit --master spark://spark-master:7077 /opt/lab/spark/03_smoke_test.py }
 Test-Step '15. Zeppelin HTTP' { curl.exe --noproxy '*' -fsS http://localhost:8080/api/version | Out-Null }
 Test-Step '16. Notebook volume' { docker compose exec -T zeppelin test -w /opt/zeppelin/notebook }
+Test-Step '17. JupyterLab HTTP' { docker compose exec -T jupyter bash -c 'curl -fsS "http://localhost:8888/api/status?token=$JUPYTER_TOKEN"' | Out-Null }
+Test-Step '18. Jupyter notebooks mounted' { docker compose exec -T jupyter test -w /opt/lab/notebooks }
 Write-Host "ИТОГ: PASS=$pass FAIL=$fail"
 if ($fail -gt 0) { exit 1 }

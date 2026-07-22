@@ -12,5 +12,7 @@ check "8-10. HiveServer2 и тестовая Parquet table" docker compose exec 
 check "11-14. Spark master/HDFS/HMS/Parquet" docker compose exec -T spark-master spark-submit --master spark://spark-master:7077 /opt/lab/spark/03_smoke_test.py
 check "15. Zeppelin HTTP" curl -fsS http://localhost:8080/api/version
 check "16. Notebook volume mounted" docker compose exec -T zeppelin test -w /opt/zeppelin/notebook
+check "17. JupyterLab HTTP" docker compose exec -T jupyter bash -c 'curl -fsS "http://localhost:8888/api/status?token=$JUPYTER_TOKEN"'
+check "18. Jupyter notebooks mounted" docker compose exec -T jupyter test -w /opt/lab/notebooks
 printf '\nИТОГ: PASS=%d FAIL=%d\n' "$pass" "$fail"
 (( fail == 0 ))
