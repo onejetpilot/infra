@@ -1,4 +1,6 @@
 .env
+vendor/
+/data/moex/
 *.log
 *.err
 *.exit

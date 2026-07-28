@@ -275,8 +275,78 @@ services:
       retries: 30
     deploy: { resources: { limits: { memory: 6G } } }
 
+  cbdb-segment-host-1:
+    <<: *service
+    image: infra-cbdb-pxf:1.6.0
+    build: { context: ., dockerfile: docker/cloudberry-pxf/Dockerfile }
+    container_name: cbdb-sdw1
+    hostname: sdw1
+    tty: true
+    networks:
+      lab:
+      cbdb-interconnect:
+        ipv4_address: 10.5.0.12
+    volumes:
+      - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+
+  cbdb-segment-host-2:
+    <<: *service
+    image: infra-cbdb-pxf:1.6.0
+    build: { context: ., dockerfile: docker/cloudberry-pxf/Dockerfile }
+    container_name: cbdb-sdw2
+    hostname: sdw2
+    tty: true
+    networks:
+      lab:
+      cbdb-interconnect:
+        ipv4_address: 10.5.0.13
+    volumes:
+      - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+
+  cbdb-coordinator:
+    <<: *service
+    image: infra-cbdb-pxf:1.6.0
+    build: { context: ., dockerfile: docker/cloudberry-pxf/Dockerfile }
+    container_name: cbdb-cdw3
+    hostname: cdw
+    tty: true
+    environment:
+      MULTINODE: "true"
+    ports: ["25432:5432"]
+    networks:
+      lab:
+      cbdb-interconnect:
+        ipv4_address: 10.5.0.10
+    volumes:
+      - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+
+  cbdb-standby-coordinator:
+    <<: *service
+    image: infra-cbdb-pxf:1.6.0
+    build: { context: ., dockerfile: docker/cloudberry-pxf/Dockerfile }
+    container_name: cbdb-scdw
+    hostname: scdw
+    tty: true
+    networks:
+      lab:
+      cbdb-interconnect:
+        ipv4_address: 10.5.0.11
+    volumes:
+      - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
+      - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+
 networks:
   lab: { name: hadoop-local-lab }
+  cbdb-interconnect:
+    name: cbdb-interconnect
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
 
 volumes:
   namenode-data:

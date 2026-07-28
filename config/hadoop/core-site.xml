@@ -5,5 +5,7 @@
   <property><name>hadoop.proxyuser.hive.groups</name><value>*</value></property>
   <property><name>hadoop.proxyuser.zeppelin.hosts</name><value>*</value></property>
   <property><name>hadoop.proxyuser.zeppelin.groups</name><value>*</value></property>
-  <property><name>hadoop.user.group.static.mapping.overrides</name><value>hive=supergroup</value></property>
+  <property><name>hadoop.proxyuser.gpadmin.hosts</name><value>cdw,scdw,sdw1,sdw2</value></property>
+  <property><name>hadoop.proxyuser.gpadmin.groups</name><value>gpadmin</value></property>
+  <property><name>hadoop.user.group.static.mapping.overrides</name><value>hive=supergroup;gpadmin=gpadmin</value></property>
 </configuration>

@@ -1,6 +1,8 @@
 # Локальный учебный стенд Hadoop
 
-Стенд поднимает HDFS (1 NameNode + 2 DataNode), PostgreSQL, Hive Metastore и HiveServer2, Spark Standalone (master + 2 worker) и Zeppelin. Все версии фиксированы; HDFS, Metastore и ноутбуки используют постоянные volumes.
+Стенд одной командой поднимает HDFS (1 NameNode + 2 DataNode), PostgreSQL, Hive Metastore
+и HiveServer2, Spark Standalone (master + 2 worker), Zeppelin, JupyterLab и кластер
+Cloudberry Database с PXF. PXF подключён к тому же HDFS — отдельного Hadoop-стека нет.
 
 ## Минимальные требования
 
@@ -9,7 +11,7 @@
 - Git 2.30+ и Git LFS 3+ для получения Parquet-файлов из каталога `data`.
 - Минимум 4 CPU, 16 ГБ RAM, выделенных Docker, и 25 ГБ свободного места.
 - Свободные локальные порты: `7077`, `8080`–`8083`, `8888`, `9083`, `9864`, `9865`,
-  `9870`, `10001`, `10002` и `15432`.
+  `9870`, `10001`, `10002`, `15432` и `25432`.
 - Доступ в интернет при первой сборке для скачивания Docker-образов и дистрибутивов.
 
 На минимальной конфигурации Spark-задачи следует запускать последовательно. Для комфортной
@@ -20,7 +22,7 @@
 ## Версии компонентов
 
 - Hadoop 3.3.6, Hive 3.1.3, Spark 3.5.5, Zeppelin 0.11.2, JupyterLab 4.2.5,
-  PostgreSQL 16.6, Java 11.
+  PostgreSQL 16.6, Cloudberry Database 1.6.0, PXF 1.6.0, Java 11.
 
 Spark 3.5 поддерживает remote Hive Metastore 3.1.3, Zeppelin 0.11.2 — Spark 3.2–3.5. Hive 3.1.3 снят с upstream-поддержки, но выбран как последнее совместимое пересечение для этого учебного стека. HDFS 3.3.6 и клиенты Hadoop 3 совместимы по протоколу. Стенд намеренно не включает YARN, Tez, ZooKeeper и HA.
 
@@ -60,6 +62,46 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 | Spark Master / workers | http://localhost:8081 / 8082 / 8083 |
 | HiveServer2 / Metastore | localhost:10001 / localhost:9083 |
 | PostgreSQL | localhost:15432 |
+| Cloudberry Database | localhost:25432, database `moex`, user `gpadmin` |
+
+## Cloudberry Database и PXF
+
+Четыре узла Cloudberry входят в тот же Compose-проект `hadoop-local-lab` и одновременно
+подключены к внутренней сети кластера и общей сети сервисов. PXF запускается внутри каждого
+узла Cloudberry и использует `config/hadoop/core-site.xml` и `hdfs-site.xml` этого стенда.
+
+Первичная сборка PXF выполняется при общем запуске:
+
+```bash
+docker compose up -d --build
+```
+
+После первого запуска создайте учебную БД и расширение:
+
+```bash
+docker compose exec cbdb-coordinator createdb moex
+docker compose exec cbdb-coordinator psql -d moex -c "CREATE EXTENSION IF NOT EXISTS pxf;"
+```
+
+Проверка сервисов:
+
+```bash
+docker compose exec cbdb-segment-host-1 pxf status
+docker compose exec cbdb-coordinator psql -d moex -c "SELECT version();"
+```
+
+Загрузка одного торгового дня MOEX для тикера `RASP` в HDFS и создание external table
+`m_razhin.moex_trades_ext`:
+
+```powershell
+python -m pip install -r requirements-moex.txt
+./powershell/load-moex.ps1 -Ticker RASP -TradeDate 2026-07-28
+```
+
+Parquet хранится в
+`/moex_labs/raw/trades/secid=RASP/trade_session_date=2026-07-28/trades.parquet`.
+Загрузчик использует Snappy, поскольку входящий в PXF 1.6.0 Hadoop-клиент собран без
+нативной поддержки Zstandard.
 
 ## HDFS и загрузка
 

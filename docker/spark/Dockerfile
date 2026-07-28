@@ -20,7 +20,7 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 
 FROM spark-base AS jupyter
 ARG JUPYTERLAB_VERSION=4.2.5
-RUN python3 -m pip install --no-cache-dir "jupyterlab==${JUPYTERLAB_VERSION}" "httpx<0.28" \
+RUN python3 -m pip install --no-cache-dir "jupyterlab==${JUPYTERLAB_VERSION}" "httpx<0.28" "matplotlib==3.9.2" \
  && python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')" \
  && py4j_zip="$(find /opt/spark/python/lib -name 'py4j-*.zip' -print -quit)" \
  && printf '/opt/spark/python\n%s\n' "$py4j_zip" > "$python_site/pyspark.pth"
