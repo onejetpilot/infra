@@ -1,0 +1,174 @@
+id,name,iso_alpha2,iso_alpha3,iso_numeric,cctld,calling_code,postal_format
+1,Antigua and Barbuda,AG,ATG,28,ag,+1-268,
+2,Mongolia,MN,MNG,496,mn,+976,#####
+3,Iraq,IQ,IRQ,368,iq,+964,#####
+4,Guinea,GN,GIN,324,gn,+224,###
+5,Mauritania,MR,MRT,478,mr,+222,#####
+6,Nigeria,NG,NGA,566,ng,+234,######
+7,Seychelles,SC,SYC,690,sc,+248,#####
+8,Indonesia,ID,IDN,360,id,+62,#####
+9,New Zealand,NZ,NZL,554,nz,+64,####
+10,Zimbabwe,ZW,ZWE,716,zw,+263,#####
+11,Russia,RU,RUS,643,ru,+7,######
+12,Honduras,HN,HND,340,hn,+504,#####
+13,Belize,BZ,BLZ,84,bz,+501,#####
+14,South Ossetia,SO,OST,,,+995-34,
+15,Netherlands,NL,NLD,528,nl,+31,#### @@
+16,Montenegro,ME,MNE,499,me,+382,#####
+17,Austria,AT,AUT,40,at,+43,####
+18,Dominican Republic,DO,DOM,214,do,+1-809,#####
+19,Serbia,RS,SRB,688,rs,+381,#####
+20,Bolivia,BO,BOL,68,bo,+591,####
+21,Sri Lanka,LK,LKA,144,lk,+94,#####
+22,Angola,AO,AGO,24,ao,+244,
+23,Finland,FI,FIN,246,fi,+358,#####
+24,Malta,MT,MLT,470,mt,+356,@## ###
+25,Yemen,YE,YEM,887,ye,+967,
+26,Saudi Arabia,SA,SAU,682,sa,+966,#####
+27,Argentina,AR,ARG,32,ar,+54,@####@@@
+28,Croatia,HR,HRV,191,hr,+385,#####
+29,Cuba,CU,CUB,192,cu,+53,#####
+30,Aruba,AW,ABW,533,aw,+297,
+31,Azerbaijan,AZ,AZE,31,az,+994,####
+32,North Macedonia,MK,MKD,807,mk,+389,####
+33,Georgia,GE,GEO,268,ge,+995,####
+34,Belgium,BE,BEL,56,be,+32,####
+35,Moldova,MD,MDA,498,md,+373,####
+36,French Polynesia,PF,PYF,258,pf,+689,987##
+37,Algeria,DZ,DZA,12,dz,+213,#####
+38,France,FR,FRA,250,fr,+33,#####
+39,Myanmar,MM,MMR,104,mm,+95,######
+40,Vietnam,VN,VNM,704,vn,+84,#####
+41,Abkhazia,AB,ABH,,,+7-840,
+42,Monaco,MC,MCO,492,mc,+377,980##
+43,Curacao,CW,CUW,531,cw,+599,
+44,Nepal,NP,NPL,524,np,+977,#####
+45,Kazakhstan,KZ,KAZ,398,kz,+7,######
+46,Malaysia,MY,MYS,458,my,+60,#####
+47,Kenya,KE,KEN,404,ke,+254,#####
+48,Palestinian Territory,PS,PSE,275,ps,+970,
+49,Madagascar,MG,MDG,450,mg,+261,###
+50,Costa Rica,CR,CRI,188,cr,+506,#####
+51,Ivory Coast,CI,CIV,384,ci,+225,#####
+52,Gibraltar,GI,GIB,292,gi,+350,GX11 1AA
+53,Philippines,PH,PHL,608,ph,+63,####
+54,Turkey,TR,TUR,792,tr,+90,#####
+55,Rwanda,RW,RWA,646,rw,+250,
+56,Switzerland,CH,CHE,756,ch,+41,####
+57,El Salvador,SV,SLV,222,sv,+503,####
+58,Italy,IT,ITA,380,it,+39,#####
+59,Hungary,HU,HUN,348,hu,+36,####
+60,Oman,OM,OMN,512,om,+968,###
+61,Cameroon,CM,CMR,120,cm,+237,
+62,China,CN,CHN,156,cn,+86,######
+63,Luxembourg,LU,LUX,442,lu,+352,####
+64,Armenia,AM,ARM,51,am,+374,####
+65,Pakistan,PK,PAK,586,pk,+92,#####
+66,Paraguay,PY,PRY,600,py,+595,####
+67,Brazil,BR,BRA,76,br,+55,#####-###
+68,Martinique,MQ,MTQ,474,mq,+596,972##
+69,Guatemala,GT,GTM,320,gt,+502,#####
+70,Cambodia,KH,KHM,116,kh,+855,#####
+71,Singapore,SG,SGP,702,sg,+65,######
+72,San Marino,SM,SMR,674,sm,+378,4789#
+73,Ethiopia,ET,ETH,231,et,+251,####
+74,Canada,CA,CAN,124,ca,+1,@#@ #@#
+75,Uzbekistan,UZ,UZB,860,uz,+998,######
+76,Libya,LY,LBY,434,ly,+218,#####
+77,Portugal,PT,PRT,620,pt,+351,####-###
+78,Colombia,CO,COL,170,co,+57,######
+79,Sint Maarten,SX,SXM,534,sx,+1-721,#####
+80,Bahrain,BH,BHR,48,bh,+973,####
+81,Saint Vincent and the Grenadines,VC,VCT,670,vc,+1-784,VC####
+82,Albania,AL,ALB,8,al,+355,####
+83,Lithuania,LT,LTU,440,lt,+370,#####
+84,Bermuda,BM,BMU,60,bm,+1-441,@# #@#
+85,Bulgaria,BG,BGR,100,bg,+359,####
+86,Tunisia,TN,TUN,788,tn,+216,####
+87,United Arab Emirates,AE,ARE,784,ae,+971,
+88,Afghanistan,AF,AFG,4,af,+93,####
+89,Bahamas,BS,BHS,44,bs,+1-242,#####
+90,The United States Virgin Islands,VI,VIR,850,vi,+1-340,#####
+91,Morocco,MA,MAR,504,ma,+212,#####
+92,Chile,CL,CHL,152,cl,+56,#######
+93,Djibouti,DJ,DJI,262,dj,+253,
+94,Mexico,MX,MEX,484,mx,+52,#####
+95,South Africa,ZA,ZAF,710,za,+27,####
+96,Peru,PE,PER,604,pe,+51,#####
+97,Tanzania,TZ,TZA,834,tz,+255,#####
+98,Poland,PL,POL,616,pl,+48,##-###
+99,Lebanon,LB,LBN,422,lb,+961,####
+100,Turks and Caicos Islands,TC,TCA,796,tc,+1-649,TKCA 1ZZ
+101,Japan,JP,JPN,392,jp,+81,###-####
+102,Denmark,DK,DNK,208,dk,+45,####
+103,Thailand,TH,THA,764,th,+66,#####
+104,Tajikistan,TJ,TJK,762,tj,+992,######
+105,Venezuela,VE,VEN,862,ve,+58,####
+106,Guam,GU,GUM,316,gu,+1-671,969##
+107,Uruguay,UY,URY,858,uy,+598,#####
+108,Czech Republic,CZ,CZE,203,cz,+420,### ##
+109,Norway,NO,NOR,578,no,+47,####
+110,Sweden,SE,SWE,752,se,+46,### ##
+111,Botswana,BW,BWA,72,bw,+267,
+112,Qatar,QA,QAT,634,qa,+974,
+113,Uganda,UG,UGA,800,ug,+256,
+114,Jordan,JO,JOR,400,jo,+962,#####
+115,Laos,LA,LAO,418,la,+856,#####
+116,American Samoa,AS,ASM,16,as,+1-684,96799
+117,Brunei,BN,BRN,96,bn,+673,@@####
+118,South Korea,KR,KOR,410,kr,+82,#####
+119,Panama,PA,PAN,591,pa,+507,
+120,Spain,ES,ESP,724,es,+34,#####
+121,Turkmenistan,TM,TKM,795,tm,+993,######
+122,The Cayman Islands,KY,CYM,136,ky,+1-345,KY#-####
+123,Mali,ML,MLI,466,ml,+223,
+124,Egypt,EG,EGY,818,eg,+20,#####
+125,Saint Kitts and Nevis,KN,KNA,659,kn,+1-869,#####
+126,Gambia,GM,GMB,270,gm,+220,
+127,Cape Verde,CV,CPV,132,cv,+238,####
+128,Nicaragua,NI,NIC,558,ni,+505,#####
+129,Syria,SY,SYR,760,sy,+963,
+130,Ghana,GH,GHA,288,gh,+233,#####
+131,Taiwan,TW,TWN,158,tw,+886,#####
+132,Zambia,ZM,ZMB,894,zm,+260,#####
+133,Iceland,IS,ISL,352,is,+354,###
+134,Democratic Republic of the Congo,CD,COD,180,cd,+243,
+135,Bhutan,BT,BTN,64,bt,+975,#####
+136,Bosnia and Herzegovina,BA,BIH,70,ba,+387,#####
+137,Benin,BJ,BEN,204,bj,+229,
+138,Trinidad and Tobago,TT,TTO,780,tt,+1-868,######
+139,United States,US,USA,840,us,+1,#####-####
+140,Somalia,SO,SOM,706,so,+252,@@ #####
+141,Togo,TG,TGO,768,tg,+228,
+142,Andorra,AD,AND,20,ad,+376,AD###
+143,Cyprus,CY,CYP,196,cy,+357,####
+144,Mozambique,MZ,MOZ,508,mz,+258,####
+145,Bangladesh,BD,BGD,50,bd,+880,####
+146,Ecuador,EC,ECU,218,ec,+593,######
+147,Saint Lucia,LC,LCA,662,lc,+1-758,#####
+148,Fiji,FJ,FJI,242,fj,+679,
+149,Belarus,BY,BLR,112,by,+375,######
+150,United Kingdom,GB,GBR,826,uk,+44,@# #@@
+151,Romania,RO,ROU,642,ro,+40,######
+152,Australia,AU,AUS,36,au,+61,####
+153,Germany,DE,DEU,276,de,+49,#####
+154,Ireland,IE,IRL,372,ie,+353,@## @@@@
+155,Mauritius,MU,MUS,480,mu,+230,#####
+156,British Virgin Islands,VG,VGB,92,vg,+1-284,VG####
+157,Barbados,BB,BRB,52,bb,+1-246,BB#####
+158,Liechtenstein,LI,LIE,438,li,+423,####
+159,Sudan,SD,SDN,729,sd,+249,#####
+160,Slovenia,SI,SVN,705,si,+386,####
+161,Greece,GR,GRC,300,gr,+30,### ##
+162,Puerto Rico,PR,PRI,630,pr,+1-787,#####-####
+163,India,IN,IND,356,in,+91,######
+164,Kyrgyzstan,KG,KGZ,417,kg,+996,######
+165,Iran,IR,IRN,364,ir,+98,##########
+166,Slovakia,SK,SVK,703,sk,+421,### ##
+167,Maldives,MV,MDV,462,mv,+960,#####
+168,Israel,IL,ISR,376,il,+972,#######
+169,Guyana,GY,GUY,328,gy,+592,
+170,Senegal,SN,SEN,686,sn,+221,#####
+171,Central African Republic,CF,CAF,140,cf,+236,
+172,Kuwait,KW,KWT,414,kw,+965,#####
+173,Jamaica,JM,JAM,388,jm,+1-876,JM###

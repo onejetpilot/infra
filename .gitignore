@@ -9,3 +9,4 @@ vendor/
 /notebook-backup/
 /notebooks/*
 !/notebooks/README.md
+**/.ipynb_checkpoints/

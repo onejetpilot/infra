@@ -87,6 +87,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  sql-train-db:
+    <<: *service
+    image: postgres:17-alpine
+    container_name: sql-train-db
+    environment:
+      POSTGRES_DB: sql_train
+      POSTGRES_USER: student
+      POSTGRES_PASSWORD: sqltrain2026
+    ports: ["15433:5432"]
+    volumes:
+      - sql-train-data:/var/lib/postgresql/data
+      - ../sql-train/sql:/workspace/sql:ro
+      - ../sql-train/data/olist:/workspace/data:ro
+      - ./training/sql/sql:/workspace/training:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U student -d sql_train"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     deploy: { resources: { limits: { memory: 2G } } }
 
   hive-metastore:
@@ -229,6 +249,7 @@ services:
       - ./config/hive/hive-site.xml:/opt/spark/conf/hive-site.xml:ro
       - ./spark:/opt/lab/spark:ro
       - ./sql:/opt/lab/sql:ro
+      - ./training/sql/notebooks:/opt/lab/notebooks/sql-train
     depends_on:
       spark-master: { condition: service_healthy }
       hiveserver2: { condition: service_healthy }
@@ -322,6 +343,7 @@ services:
     volumes:
       - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
       - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+      - ./data/gpfdist:/home/gpadmin/gpfdist:ro
 
   cbdb-standby-coordinator:
     <<: *service
@@ -353,4 +375,7 @@ volumes:
   datanode1-data:
   datanode2-data:
   postgres-data:
+  sql-train-data:
+    external: true
+    name: sql-train_postgres_data
   zeppelin-notebooks:

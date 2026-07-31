@@ -62,6 +62,7 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 | Spark Master / workers | http://localhost:8081 / 8082 / 8083 |
 | HiveServer2 / Metastore | localhost:10001 / localhost:9083 |
 | PostgreSQL | localhost:15432 |
+| SQL Train PostgreSQL | localhost:15433, database `sql_train`, user `student` |
 | Cloudberry Database | localhost:25432, database `moex`, user `gpadmin` |
 
 ## Cloudberry Database и PXF
@@ -75,6 +76,10 @@ PowerShell: `Copy-Item .env.example .env`, затем `docker compose up -d --bu
 ```bash
 docker compose up -d --build
 ```
+
+Команда с `--build` предназначена для первоначального развёртывания. Для обычного запуска
+уже созданного стенда используйте `docker compose up -d`, чтобы Compose не пересоздал
+контейнеры Cloudberry с локальными каталогами БД.
 
 После первого запуска создайте учебную БД и расширение:
 
@@ -90,6 +95,75 @@ docker compose exec cbdb-segment-host-1 pxf status
 docker compose exec cbdb-coordinator psql -d moex -c "SELECT version();"
 ```
 
+После перезапуска Docker стартовый скрипт поднимает уже инициализированный кластер командой
+`gpstart`, а не запускает `gpinitsystem` повторно. Зелёный статус контейнера сам по себе не
+гарантирует готовность СУБД, поэтому проверяйте именно SQL-командой выше.
+
+### Greenplum lab в Jupyter
+
+Рабочий ноутбук находится в `notebooks/Greenplum_Lab.ipynb`. В Jupyter уже установлены
+`psycopg2`, SQLAlchemy и JupySQL. Подключение из Python kernel:
+
+```python
+%load_ext sql
+%sql postgresql+psycopg2://gpadmin@cbdb-coordinator:5432/moex
+```
+
+Для последующих SQL-ячеек используйте:
+
+```sql
+%%sql
+SET search_path TO m_razhin, public;
+
+SELECT current_database(), current_user, current_schema();
+```
+
+Подготовленные инфраструктурные источники:
+
+| Назначение | Источник |
+|---|---|
+| Yandex Metrica в Hive | `yndx_metrica_data.metrica` |
+| Yandex Metrica через PXF | `dds.ext_raw_yndx_metrica_logs` |
+| countries.csv через gpfdist | `gpfdist://cdw:8080/countries.csv` |
+| writable Parquet для лабораторной | `/data/raw/m_razhin/` |
+| MOEX raw Parquet | `/moex_labs/raw/trades/` |
+
+Hive-таблица `yndx_metrica_data.metrica` повторяет кластерную схему: `_date` содержит полную
+дату визита, а партиционное поле `date` — год. В локальных Parquet первая физическая колонка
+называется `date`; свойство Hive `parquet.column.index.access=true` сопоставляет её с `_date`
+по позиции и не смешивает с годовой партицией. В PXF-источнике поле полной даты называется
+`date`, как в исходной Greenplum-таблице из задания.
+
+`gpfdist` запускается внутри координатора `cbdb-cdw3` на внутреннем порту `8080`; отдельный
+Greenplum или Hadoop для него не создаётся. Файл на хосте расположен в
+`data/gpfdist/countries.csv`. Проверенный файл содержит 173 записи без строки заголовка.
+
+Для чтения результата, только что записанного через writable PXF, указывайте файловый шаблон:
+
+```sql
+LOCATION (
+    'pxf://data/raw/m_razhin/<directory>/*?PROFILE=hdfs:parquet'
+)
+```
+
+PXF 1.6.0 может закэшировать ещё не существующий каталог, если попытаться прочитать его до
+первой записи. Сначала выполните `INSERT` во writable external table, затем создавайте или
+опрашивайте readable external table.
+
+Ноутбук содержит выполненное решение пунктов 0–5 и создаёт следующие основные объекты:
+
+| Пункт | Объекты |
+|---|---|
+| Distribution | `m_razhin.yndx_metrica_logs` |
+| Exchange Partition | `m_razhin.yndx_metrica_logs_stg`, партиция `p_2026_08` |
+| GPFDIST | `m_razhin.countries_ext`, `m_razhin.countries` |
+| HDFS Parquet | `m_razhin.countries_hdfs_w`, `m_razhin.countries_hdfs_r` |
+| MOEX mart | `m_razhin.dm_rasp_largest_deals` |
+
+Повторный полный запуск безопасен: основные внутренние таблицы пересоздаются, а каталог
+`/data/raw/m_razhin/countries_parquet` очищается непосредственно перед записью. Не запускайте
+отдельно только ячейку `ADD PARTITION`, если родительская таблица не была пересоздана первой.
+
 Загрузка одного торгового дня MOEX для тикера `RASP` в HDFS и создание external table
 `m_razhin.moex_trades_ext`:
 
@@ -102,6 +176,48 @@ Parquet хранится в
 `/moex_labs/raw/trades/secid=RASP/trade_session_date=2026-07-28/trades.parquet`.
 Загрузчик использует Snappy, поскольку входящий в PXF 1.6.0 Hadoop-клиент собран без
 нативной поддержки Zstandard.
+
+## SQL Train
+
+PostgreSQL 17 с Olist-датасетом входит в общий Compose-проект как сервис `sql-train-db`.
+Он использует существующий volume `sql-train_postgres_data` и исходные SQL/CSV из соседнего
+проекта `../sql-train`.
+
+Подключение с Windows:
+
+```text
+host: localhost
+port: 15433
+database: sql_train
+user: student
+password: sqltrain2026
+```
+
+Подключение из Jupyter:
+
+```python
+%load_ext sql
+%sql postgresql+psycopg2://student:sqltrain2026@sql-train-db:5432/sql_train
+```
+
+Учебные материалы хранятся непосредственно в этом репозитории:
+
+```text
+training/sql/notebooks  -> Jupyter-ноутбуки
+training/sql/sql        -> автоматические SQL-проверки
+training/sql/scripts    -> воспроизводимые генераторы ноутбуков
+```
+
+Каталог `training/sql/notebooks` примонтирован в Jupyter как
+`/opt/lab/notebooks/sql-train`. Программа рассчитана на 120 заданий: по 30 на функции,
+процедуры, дедупликацию и транзакции/изоляцию. Эталонные решения не публикуются; после
+каждого задания запускается автоматическая проверка через `training.run_checks`.
+
+Если базу потребуется развернуть с нуля, выполните:
+
+```powershell
+./powershell/init-sql-train.ps1
+```
 
 ## HDFS и загрузка
 
@@ -217,7 +333,7 @@ docker compose logs -f jupyter
 Адрес: `http://localhost:8888`. Введите значение `JUPYTER_TOKEN` на странице входа.
 Пример первой PySpark-ячейки находится в `notebooks/README.md`. Настройки master,
 Hive Metastore и HDFS уже передаются контейнеру; вручную устанавливать Java или PySpark
-на Windows не требуется.
+на Windows не требуется. Для Greenplum используйте `notebooks/Greenplum_Lab.ipynb`.
 
 Для остановки только JupyterLab:
 
@@ -232,6 +348,12 @@ docker compose stop jupyter
 - Новый пользователь не появился: проверьте `HDFS_USERS`, выполните `docker compose up -d`, затем `make init` и `make upload`.
 - JupyterLab не открывается: проверьте `docker compose ps jupyter`, логи контейнера и свободен ли порт `8888`.
 - JupyterLab запрашивает token: используйте значение `JUPYTER_TOKEN` из `.env`.
+- Контейнер Cloudberry имеет статус `Up`, но SQL не отвечает: проверьте
+  `docker compose logs cbdb-coordinator` и запустите существующий кластер через `gpstart -a`.
+- Ошибка `PXF server ... Connection refused`: проверьте `pxf status` на обоих segment-host и
+  выполните `pxf start` на узле, где сервис остановлен.
+- `gpfdist` возвращает HTTP 400 при обычном `curl`: это ожидаемо без заголовка
+  `X-GP-PROTO`; проверяйте его через Greenplum external table.
 - Hive недоступен: проверьте `docker compose ps` и логи `postgres`, `hive-metastore`, `hiveserver2`.
 - Spark не видит таблицы: проверьте `hive.metastore.uris` и `hive-site.xml` в Spark.
 - Репликация не равна 2: оба DataNode должны быть healthy; используйте `dfsadmin -report` и `fsck`.
@@ -242,7 +364,11 @@ docker compose stop jupyter
 
 ## Backup и удаление
 
-До удаления: `hdfs dfs -get`, `pg_dump`, и `docker compose cp zeppelin:/opt/zeppelin/notebook ./notebook-backup`. Обычный `docker compose down` сохраняет volumes.
+До удаления: `hdfs dfs -get`, `pg_dump`, и `docker compose cp zeppelin:/opt/zeppelin/notebook ./notebook-backup`.
+Обычный `docker compose down` сохраняет именованные volumes Hadoop/PostgreSQL/Zeppelin, но
+текущие каталоги данных Cloudberry находятся в файловой системе его контейнеров. До добавления
+отдельных Cloudberry volumes не выполняйте `docker compose down` или принудительное
+пересоздание `cbdb-*` без `pg_dump`.
 
 Полное необратимое удаление: `CONFIRM_RESET=DELETE make reset` или `./powershell/reset-lab.ps1 -Confirm`.
 
