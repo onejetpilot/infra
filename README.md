@@ -1,5 +1,23 @@
 # Локальный учебный стенд Hadoop
 
+## Учебные курсы и каталог данных
+
+В Jupyter доступны `sql-train`, `greenplum-train`, `hadoop-train`, `spark-train` и общий
+`data-catalog`. Во всех модулях используется единый формат: цели → ментальная модель →
+подробная теория → архитектура/схема данных → алгоритм → ошибки → самопроверка → 30
+заданий с карточками и checker. Готовые решения и выполненные outputs не публикуются.
+
+`data-catalog/00_Data_Catalog_and_Schemas.ipynb` описывает Olist, eBay, Yandex Metrica и
+MOEX: grain, ключи, связи, типы, NULL и проверки качества.
+
+Воспроизводимая пересборка всех ноутбуков:
+
+```powershell
+python training/build_all_notebooks.py
+```
+
+Правила авторинга: `training/common/COURSE_AUTHORING_STANDARD.md`.
+
 Стенд одной командой поднимает HDFS (1 NameNode + 2 DataNode), PostgreSQL, Hive Metastore
 и HiveServer2, Spark Standalone (master + 2 worker), Zeppelin, JupyterLab и кластер
 Cloudberry Database с PXF. PXF подключён к тому же HDFS — отдельного Hadoop-стека нет.
@@ -109,6 +127,44 @@ docker compose exec cbdb-coordinator psql -d moex -c "SELECT version();"
 %sql postgresql+psycopg2://gpadmin@cbdb-coordinator:5432/moex
 ```
 
+Учебный курс Greenplum расположен в `training/greenplum` и доступен в Jupyter как
+`greenplum-train`. Вводные ноутбуки:
+
+- `00_Greenplum_Course_Map.ipynb`;
+- `00_Architecture_and_Infrastructure.ipynb`.
+- `01_Distribution_30_Tasks.ipynb` — 30 заданий по distribution policy,
+  skew, colocated JOIN и Motion.
+- `02_Storage_Partitioning_30_Tasks.ipynb` — heap/AO row/AO column,
+  compression, partition pruning и Direct Partition Exchange.
+- `03_Query_Plans_Optimization_30_Tasks.ipynb` — EXPLAIN ANALYZE,
+  cardinality, JOIN/Motion, aggregation, sort и spill.
+- `04_GPFDIST_30_Tasks.ipynb` — readable/writable external tables,
+  CSV, rejected rows, parallel load и reconciliation.
+- `05_PXF_HDFS_Parquet_30_Tasks.ipynb` — PXF profiles/fragments,
+  Parquet pushdown, writable HDFS, round-trip и диагностика.
+- `06_ETL_30_Tasks.ipynb` — full/incremental load, watermark,
+  idempotency, late data, SCD, audit и retry.
+- `07_Data_Marts_30_Tasks.ipynb` — fact/dimensions, SCD, MOEX top
+  BUY/SELL, liquidity/price marts, serving и publish.
+- `08_Administration_30_Tasks.ipynb` — topology, sessions/locks,
+  storage/skew, maintenance, resources, PXF/HDFS и incident runbooks.
+
+Решения создаются в `m_razhin`, а автоматические проверки и прогресс хранятся в
+служебной схеме `greenplum_training`.
+
+Курс содержит 8 практических модулей: 240 заданий и 480 автоматических тестов.
+Готовые решения не публикуются. Для полной воспроизводимой инициализации:
+
+```powershell
+./powershell/init-greenplum-training.ps1
+```
+
+или:
+
+```bash
+./scripts/init-greenplum-training.sh
+```
+
 Для последующих SQL-ячеек используйте:
 
 ```sql
@@ -136,7 +192,7 @@ Hive-таблица `yndx_metrica_data.metrica` повторяет класте�
 
 `gpfdist` запускается внутри координатора `cbdb-cdw3` на внутреннем порту `8080`; отдельный
 Greenplum или Hadoop для него не создаётся. Файл на хосте расположен в
-`data/gpfdist/countries.csv`. Проверенный файл содержит 173 записи без строки заголовка.
+`data/gpfdist/countries.csv`. Файл содержит строку заголовка и 173 записи с данными.
 
 Для чтения результата, только что записанного через writable PXF, указывайте файловый шаблон:
 
@@ -209,9 +265,24 @@ training/sql/scripts    -> воспроизводимые генераторы �
 ```
 
 Каталог `training/sql/notebooks` примонтирован в Jupyter как
-`/opt/lab/notebooks/sql-train`. Программа рассчитана на 120 заданий: по 30 на функции,
-процедуры, дедупликацию и транзакции/изоляцию. Эталонные решения не публикуются; после
-каждого задания запускается автоматическая проверка через `training.run_checks`.
+`/opt/lab/notebooks/sql-train`. Программа рассчитана на 360 заданий: по 30 в каждом из
+12 модулей. После рабочей ячейки находится сворачиваемое эталонное решение с
+объяснением; результат проверяется через `training.run_checks`.
+
+Готовые модули:
+
+- `01_JOIN_и_гранулярность_30_Tasks.ipynb` — JOIN, кардинальность и контроль grain;
+- `02_Даты_и_временные_ряды_30_Tasks.ipynb` — календарная аналитика;
+- `03_Window_Functions_30_Tasks.ipynb` — окна, frames, когорты и временные ряды;
+- `04_JSONB_и_массивы_PostgreSQL_30_Tasks.ipynb` — JSONB, массивы и GIN;
+- `05_Functions_30_Tasks.ipynb` — функции PostgreSQL;
+- `06_Procedures_30_Tasks.ipynb` — процедуры и изменяемая песочница `training`;
+- `07_Transactions_Isolation_30_Tasks.ipynb` — ACID, изоляция и блокировки;
+- `08_Deduplication_30_Tasks.ipynb` — канонические записи и качество;
+- `09_Планы,_индексы_и_оптимизация_30_Tasks.ipynb` — EXPLAIN, индексы и планы;
+- `10_SQL_ETL_и_инкрементальные_загрузки_30_Tasks.ipynb` — идемпотентный ETL;
+- `11_Моделирование_DWH_30_Tasks.ipynb` — факты, измерения и SCD;
+- `12_Безопасность_PostgreSQL_30_Tasks.ipynb` — роли, GRANT, RLS и least privilege.
 
 Если базу потребуется развернуть с нуля, выполните:
 
@@ -220,6 +291,37 @@ training/sql/scripts    -> воспроизводимые генераторы �
 ```
 
 ## HDFS и загрузка
+
+### Spark Training
+
+В JupyterLab доступна папка `spark-train` с курсом Apache Spark 3.5.5 на eBay:
+
+- 8 модулей и 240 заданий;
+- архитектура Spark, DataFrame API, Spark SQL, JOIN/окна, хранение,
+  производительность, ETL/качество и итоговый проект;
+- подробная теория без готовых решений и сохранённых результатов;
+- автоматическая проверка непустого Parquet, схемы и JSON-evidence;
+- выполнение на существующем master и двух worker, с HDFS и Hive Metastore.
+
+Результаты создаются только в `/user/<HDFS_USER>/spark_training`. Начальная точка:
+`spark-train/00_Spark_Course_Map.ipynb`.
+
+### Hadoop Training
+
+В JupyterLab доступна папка `hadoop-train` с полным курсом на реальном eBay-датасете:
+
+- 8 последовательных модулей;
+- 30 заданий в каждом, всего 240;
+- подробная теория без готовых решений;
+- автоматические проверки HDFS-артефактов и Hive-объектов: существование,
+  читаемость/непустой результат и содержательное JSON-доказательство;
+- итоговый проект raw → staging → core → quality.
+
+Курс охватывает архитектуру HDFS, CLI, Parquet и сжатие, Hive DDL,
+партиционирование и оптимизацию, права и эксплуатацию, batch ETL и качество данных.
+Общий `/data/raw/ebay` используется только для чтения. Результаты создаются в
+`/user/<HDFS_USER>/hadoop_training` и в личной Hive-БД `<HDFS_USER>_db`.
+Начальная точка: `hadoop-train/00_Hadoop_Course_Map.ipynb`.
 
 `HDFS_USER` задаёт основной аккаунт для Spark, Zeppelin и тестов. `HDFS_USERS` — список
 аккаунтов через запятую, например `anna,ivan,petr`. Команда `make init` создаёт каждому
@@ -341,6 +443,53 @@ Hive Metastore и HDFS уже передаются контейнеру; вру�
 docker compose stop jupyter
 ```
 
+## Kafka и Airflow
+
+Компоненты задания входят в тот же Compose-проект и запускаются вместе с остальной
+инфраструктурой:
+
+| Компонент | Адрес / объект |
+|---|---|
+| PostgreSQL задания | `localhost:15434`, БД `kafka_task` |
+| Исходная таблица | `kafka_prod.events_source` |
+| Kafka с хоста | `localhost:9092` |
+| Kafka внутри Docker | `kafka:29092` |
+| Топик | `task_events_log_razhin` |
+| Airflow | `http://localhost:8090` |
+
+Локальные учетные данные по умолчанию:
+
+| Сервис | Логин | Пароль |
+|---|---|---|
+| PostgreSQL `kafka_task` | `kafka_user` | `kafka2026` |
+| Airflow | `airflow` | `airflow` |
+
+Значения можно изменить в `.env` до первого запуска. Инфраструктура создает БД,
+схемы `kafka_prod` и `kafka_dev`, исходную таблицу `kafka_prod.events_source` и Kafka-топик.
+Итоговую таблицу, producer, consumer и DAG-и нужно написать самостоятельно по заданию.
+
+Каталоги для работы:
+
+- `kafka_airflow/src` — собственные producer и consumer;
+- `kafka_airflow/dags` — собственные DAG-и;
+- `kafka_airflow/sql` — инфраструктурная инициализация исходной БД.
+
+Проверка готовности инфраструктуры:
+
+```bash
+make kafka-check
+# Windows PowerShell:
+./powershell/check-kafka-airflow.ps1
+```
+
+Проверка объектов отдельно:
+
+```bash
+docker compose exec kafka kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic task_events_log_razhin
+docker compose exec kafka-task-db psql -U kafka_user -d kafka_task -c "TABLE kafka_prod.events_source;"
+docker compose exec airflow-webserver airflow dags list
+```
+
 ## Типовые ошибки
 
 - `Permission denied`: повторите `make init`; используются владелец/группа и режимы, не `777`.
@@ -361,6 +510,9 @@ docker compose stop jupyter
 - Конфликт порта: измените левую часть нужного `ports` в Compose.
 - `^M`/bad interpreter: `git config core.autocrlf false` либо `dos2unix scripts/*.sh docker/*/*.sh`.
 - Archive не скачивается: проверьте proxy Docker Desktop и повторите build.
+- Kafka недоступна: проверьте `docker compose ps kafka` и внутренний адрес `kafka:29092`.
+- DAG не появился: проверьте `docker compose logs airflow-scheduler` и импорт командой
+  `docker compose exec airflow-webserver airflow dags list-import-errors`.
 
 ## Backup и удаление
 

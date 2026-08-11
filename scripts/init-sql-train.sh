@@ -24,6 +24,17 @@ sql_files=(
     /workspace/sql/quality/002_source_counts.sql
     /workspace/training/001_check_framework.sql
     /workspace/training/010_function_tests.sql
+    /workspace/training/020_procedure_tests.sql
+    /workspace/training/030_deduplication_tests.sql
+    /workspace/training/040_transaction_tests.sql
+    /workspace/training/050_window_function_tests.sql
+    /workspace/training/060_joins_tests.sql
+    /workspace/training/070_optimization_tests.sql
+    /workspace/training/080_etl_tests.sql
+    /workspace/training/090_dwh_tests.sql
+    /workspace/training/100_datetime_tests.sql
+    /workspace/training/110_json_arrays_tests.sql
+    /workspace/training/120_security_tests.sql
 )
 
 for sql_file in "${sql_files[@]}"; do

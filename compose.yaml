@@ -92,6 +92,7 @@ services:
     <<: *service
     image: postgres:17-alpine
     container_name: sql-train-db
+    shm_size: 256mb
     environment:
       POSTGRES_DB: sql_train
       POSTGRES_USER: student
@@ -250,6 +251,13 @@ services:
       - ./spark:/opt/lab/spark:ro
       - ./sql:/opt/lab/sql:ro
       - ./training/sql/notebooks:/opt/lab/notebooks/sql-train
+      - ./training/greenplum/notebooks:/opt/lab/notebooks/greenplum-train
+      - ./training/hadoop:/opt/lab/hadoop-training:ro
+      - ./training/hadoop/notebooks:/opt/lab/notebooks/hadoop-train
+      - ./training/spark:/opt/lab/spark-training:ro
+      - ./training/spark/notebooks:/opt/lab/notebooks/spark-train
+      - ./training/common/notebooks:/opt/lab/notebooks/data-catalog
+      - ./training/common/notebooks:/opt/lab/notebooks/data-catalog
     depends_on:
       spark-master: { condition: service_healthy }
       hiveserver2: { condition: service_healthy }
@@ -308,6 +316,7 @@ services:
       cbdb-interconnect:
         ipv4_address: 10.5.0.12
     volumes:
+      - cbdb-segment1-data:/data0
       - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
       - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
 
@@ -323,6 +332,7 @@ services:
       cbdb-interconnect:
         ipv4_address: 10.5.0.13
     volumes:
+      - cbdb-segment2-data:/data0
       - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
       - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
 
@@ -341,8 +351,11 @@ services:
       cbdb-interconnect:
         ipv4_address: 10.5.0.10
     volumes:
+      - cbdb-coordinator-data:/data0
+      - ./docker/cloudberry-pxf/start-with-pxf.sh:/usr/local/bin/start-with-pxf.sh:ro
       - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
       - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+      - ./training:/opt/training:ro
       - ./data/gpfdist:/home/gpadmin/gpfdist:ro
 
   cbdb-standby-coordinator:
@@ -357,8 +370,170 @@ services:
       cbdb-interconnect:
         ipv4_address: 10.5.0.11
     volumes:
+      - cbdb-standby-data:/data0
       - ./config/hadoop/core-site.xml:/home/gpadmin/pxf-base/servers/default/core-site.xml:ro
       - ./config/hadoop/hdfs-site.xml:/home/gpadmin/pxf-base/servers/default/hdfs-site.xml:ro
+
+  kafka-task-db:
+    <<: *service
+    image: postgres:16.6-bookworm
+    hostname: kafka-task-db
+    environment:
+      POSTGRES_DB: ${KAFKA_TASK_DB:-kafka_task}
+      POSTGRES_USER: ${KAFKA_TASK_USER:-kafka_user}
+      POSTGRES_PASSWORD: ${KAFKA_TASK_PASSWORD:-kafka2026}
+    ports: ["15434:5432"]
+    volumes:
+      - kafka-task-data:/var/lib/postgresql/data
+      - ./kafka_airflow/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 1G } } }
+
+  kafka:
+    <<: *service
+    image: apache/kafka:3.9.0
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_NUM_PARTITIONS: "3"
+    ports: ["9092:9092"]
+    volumes: ["kafka-data:/var/lib/kafka/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    restart: "no"
+    networks: [lab]
+    depends_on:
+      kafka: { condition: service_healthy }
+    command:
+      - bash
+      - -c
+      - >-
+        /opt/kafka/bin/kafka-topics.sh
+        --bootstrap-server kafka:29092
+        --create --if-not-exists
+        --topic task_events_log_razhin
+        --partitions 3 --replication-factor 1
+
+  airflow-db:
+    <<: *service
+    image: postgres:16.6-bookworm
+    hostname: airflow-db
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
+    ports: ["15435:5432"]
+    volumes: ["airflow-db-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 1G } } }
+
+  airflow-init:
+    image: infra-airflow-kafka:2.10.5
+    build: { context: ., dockerfile: docker/airflow/Dockerfile }
+    restart: "no"
+    networks: [lab]
+    environment: &airflow-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__DEFAULT_TIMEZONE: Europe/Moscow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-db:5432/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-local-airflow-secret-key}
+      AIRFLOW__CORE__FERNET_KEY: ""
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: task_events_log_razhin
+      KAFKA_CONSUMER_GROUP: task_events_consumer_razhin
+      KAFKA_TASK_DB_HOST: kafka-task-db
+      KAFKA_TASK_DB_PORT: "5432"
+      KAFKA_TASK_DB: ${KAFKA_TASK_DB:-kafka_task}
+      KAFKA_TASK_USER: ${KAFKA_TASK_USER:-kafka_user}
+      KAFKA_TASK_PASSWORD: ${KAFKA_TASK_PASSWORD:-kafka2026}
+    volumes:
+      - ./kafka_airflow/dags:/opt/airflow/dags:ro
+      - ./kafka_airflow/src:/opt/airflow/kafka_task:ro
+      - airflow-logs:/opt/airflow/logs
+    depends_on:
+      airflow-db: { condition: service_healthy }
+      kafka-task-db: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+    command:
+      - bash
+      - -c
+      - >-
+        airflow db migrate &&
+        (airflow users create
+        --username "${AIRFLOW_ADMIN_USER:-airflow}"
+        --password "${AIRFLOW_ADMIN_PASSWORD:-airflow}"
+        --firstname Local --lastname Admin
+        --role Admin --email airflow@local.test || true)
+
+  airflow-webserver:
+    <<: *service
+    image: infra-airflow-kafka:2.10.5
+    build: { context: ., dockerfile: docker/airflow/Dockerfile }
+    hostname: airflow-webserver
+    environment: *airflow-env
+    command: webserver
+    ports: ["8090:8080"]
+    volumes:
+      - ./kafka_airflow/dags:/opt/airflow/dags:ro
+      - ./kafka_airflow/src:/opt/airflow/kafka_task:ro
+      - airflow-logs:/opt/airflow/logs
+    depends_on:
+      airflow-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+    deploy: { resources: { limits: { memory: 2G } } }
+
+  airflow-scheduler:
+    <<: *service
+    image: infra-airflow-kafka:2.10.5
+    build: { context: ., dockerfile: docker/airflow/Dockerfile }
+    hostname: airflow-scheduler
+    environment: *airflow-env
+    command: scheduler
+    volumes:
+      - ./kafka_airflow/dags:/opt/airflow/dags:ro
+      - ./kafka_airflow/src:/opt/airflow/kafka_task:ro
+      - airflow-logs:/opt/airflow/logs
+    depends_on:
+      airflow-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}"]
+      interval: 20s
+      timeout: 10s
+      retries: 30
+    deploy: { resources: { limits: { memory: 2G } } }
 
 networks:
   lab: { name: hadoop-local-lab }
@@ -379,3 +554,11 @@ volumes:
     external: true
     name: sql-train_postgres_data
   zeppelin-notebooks:
+  kafka-task-data:
+  kafka-data:
+  airflow-db-data:
+  airflow-logs:
+  cbdb-coordinator-data:
+  cbdb-standby-data:
+  cbdb-segment1-data:
+  cbdb-segment2-data:

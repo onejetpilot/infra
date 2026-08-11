@@ -41,7 +41,7 @@ VALUES
  $q$SELECT '[10, 3]'::jsonb$q$),
 ('functions', 13, 1, 'Выручка категории',
  $q$SELECT to_jsonb(training.fn_13_category_revenue('bed_bath_table'))$q$,
- $q$SELECT to_jsonb((SELECT round(sum(revenue), 2) FROM mart.product_sales WHERE product_category_name = 'bed_bath_table'))$q$),
+ $q$SELECT to_jsonb(coalesce((SELECT round(sum(revenue), 2) FROM mart.product_sales WHERE product_category_name = 'bed_bath_table'), 0::numeric))$q$),
 ('functions', 14, 1, 'Набор строк со статистикой статусов',
  $q$SELECT to_jsonb((SELECT sum(orders_count) FROM training.fn_14_order_status_summary()))$q$,
  $q$SELECT to_jsonb((SELECT count(*) FROM staging.orders))$q$),

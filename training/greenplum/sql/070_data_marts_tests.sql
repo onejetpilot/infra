@@ -1,0 +1,98 @@
+DROP TABLE IF EXISTS greenplum_training.mart_trades_source;
+CREATE TABLE greenplum_training.mart_trades_source
+WITH(appendoptimized=true,orientation=column,compresstype=zstd,compresslevel=1) AS
+SELECT event_id AS trade_id,
+       CASE WHEN event_id%5=0 THEN 'TQTF' ELSE 'TQBR' END boardid,
+       CASE WHEN event_id%5=0 THEN 'ETF market' ELSE 'Main market' END board_name,
+       'ISIN'||lpad((event_id%20)::text,8,'0') isin,
+       false isqualifiedinvestors,
+       'SEC'||lpad((event_id%20)::text,2,'0') secid,
+       round((50+(event_id%1000)/10.0)::numeric,2) price,
+       (1+event_id%1000)::bigint quantity,
+       round((50+(event_id%1000)/10.0)*(1+event_id%1000),2)::numeric value,
+       CASE WHEN event_id%2=0 THEN 'BUY' ELSE 'SELL' END deal_type,
+       event_date::timestamp+(event_id%86400)*interval '1 second' deal_time,
+       event_date trade_session_date
+FROM greenplum_training.dist_source
+DISTRIBUTED BY(secid);
+ANALYZE greenplum_training.mart_trades_source;
+
+DELETE FROM greenplum_training.task_tests WHERE module_name='data_marts';
+INSERT INTO greenplum_training.task_tests
+(module_name,task_no,test_no,test_name,actual_sql,expected_sql)
+SELECT 'data_marts',n,1,'Объект создан',
+ format('SELECT greenplum_training.relation_exists(%L)::text',
+ format('m_razhin.gpm_%s_%s',lpad(n::text,2,'0'),suffix)),
+ 'SELECT true::text'
+FROM (VALUES
+(1,'grain'),(2,'dim_board'),(3,'dim_security'),(4,'dim_date'),
+(5,'fact_trade'),(6,'fact_quality'),(7,'fact_join'),(8,'daily_base'),
+(9,'top_trade'),(10,'top_ties'),(11,'required_mart'),(12,'mart_policy'),
+(13,'liquidity_daily'),(14,'liquidity_rank'),(15,'price_daily'),
+(16,'prev_close'),(17,'price_change'),(18,'monthly'),(19,'seasonality'),
+(20,'data_quality'),(21,'scd_security'),(22,'asof_join'),(23,'late_trade'),
+(24,'increment_daily'),(25,'increment_monthly'),(26,'reconciliation'),
+(27,'query_plan'),(28,'serving_view'),(29,'publish_audit'),(30,'showcase')) x(n,suffix);
+
+INSERT INTO greenplum_training.task_tests
+(module_name,task_no,test_no,test_name,actual_sql,expected_sql) VALUES
+('data_marts',1,2,'Grain контракта полный',
+ $$SELECT (grain_columns @> ARRAY['trade_session_date','secid','deal_type']::text[] AND uniqueness_rule IS NOT NULL)::text FROM m_razhin.gpm_01_grain$$,$$SELECT true::text$$),
+('data_marts',2,2,'Board dimension уникально и replicated',
+ $$SELECT (count(*)=count(DISTINCT boardid) AND pg_get_table_distributedby('m_razhin.gpm_02_dim_board'::regclass)='DISTRIBUTED REPLICATED')::text FROM m_razhin.gpm_02_dim_board$$,$$SELECT true::text$$),
+('data_marts',3,2,'Security dimension уникально по business key',
+ $$SELECT (count(*)=20 AND count(*)=count(DISTINCT secid) AND count(*)=count(DISTINCT security_sk))::text FROM m_razhin.gpm_03_dim_security$$,$$SELECT true::text$$),
+('data_marts',4,2,'Calendar непрерывен',
+ $$SELECT (max(calendar_date)-min(calendar_date)+1=count(*) AND count(*)=count(DISTINCT calendar_date))::text FROM m_razhin.gpm_04_dim_date$$,$$SELECT true::text$$),
+('data_marts',5,2,'Fact сохранил 100000 сделок',
+ $$SELECT (count(*)=100000 AND count(*)=count(DISTINCT trade_id) AND pg_get_table_distributedby('m_razhin.gpm_05_fact_trade'::regclass)='DISTRIBUTED BY (secid)')::text FROM m_razhin.gpm_05_fact_trade$$,$$SELECT true::text$$),
+('data_marts',6,2,'Fact quality без критичных ошибок',
+ $$SELECT (duplicate_trade_ids=0 AND invalid_deal_types=0 AND nonpositive_values=0 AND null_required=0)::text FROM m_razhin.gpm_06_fact_quality$$,$$SELECT true::text$$),
+('data_marts',7,2,'Dimension join без потерь/размножения',
+ $$SELECT (fact_rows=joined_rows AND unmatched_rows=0 AND duplicated_rows=0)::text FROM m_razhin.gpm_07_fact_join$$,$$SELECT true::text$$),
+('data_marts',8,2,'Daily base уникальна по grain',
+ $$SELECT (count(*)=count(DISTINCT (trade_session_date,secid,deal_type)) AND min(trades_count)>0)::text FROM m_razhin.gpm_08_daily_base$$,$$SELECT true::text$$),
+('data_marts',9,2,'Top trade — одна строка на группу и максимум',
+ $$SELECT (count(*)=count(DISTINCT (trade_session_date,secid,deal_type)) AND bool_and(value=max_value_in_group))::text FROM m_razhin.gpm_09_top_trade$$,$$SELECT true::text$$),
+('data_marts',10,2,'Ties посчитаны для каждой группы',
+ $$SELECT (count(*)=(SELECT count(*) FROM m_razhin.gpm_08_daily_base) AND min(max_tie_count)>=1)::text FROM m_razhin.gpm_10_top_ties$$,$$SELECT true::text$$),
+('data_marts',11,2,'Итоговая mart имеет требуемые колонки и grain',
+ $$SELECT (count(*)=count(DISTINCT (trade_session_date,secid,deal_type)) AND count(*)>0 AND count(*) FILTER(WHERE boardid IS NULL OR board_name IS NULL OR isin IS NULL OR price IS NULL OR value IS NULL OR quantity IS NULL OR deal_time IS NULL)=0)::text FROM m_razhin.gpm_11_required_mart$$,$$SELECT true::text$$),
+('data_marts',12,2,'Physical recommendation полна',
+ $$SELECT (storage ILIKE '%column%' AND compression IS NOT NULL AND distribution_key IS NOT NULL AND partition_key='trade_session_date' AND justification IS NOT NULL)::text FROM m_razhin.gpm_12_mart_policy$$,$$SELECT true::text$$),
+('data_marts',13,2,'Liquidity daily сохраняет measures',
+ $$SELECT (count(*)=count(DISTINCT (trade_session_date,secid)) AND min(trades_count)>0 AND min(sum_value)>0)::text FROM m_razhin.gpm_13_liquidity_daily$$,$$SELECT true::text$$),
+('data_marts',14,2,'Liquidity rank начинается с 1 в каждом дне',
+ $$SELECT bool_and(min_rank=1)::text FROM (SELECT trade_session_date,min(liquidity_rank_day) min_rank FROM m_razhin.gpm_14_liquidity_rank GROUP BY 1)s$$,$$SELECT true::text$$),
+('data_marts',15,2,'OHLC корректен',
+ $$SELECT (count(*)=count(DISTINCT (trade_session_date,secid)) AND bool_and(low_price<=open_price AND low_price<=close_price AND high_price>=open_price AND high_price>=close_price))::text FROM m_razhin.gpm_15_price_daily$$,$$SELECT true::text$$),
+('data_marts',16,2,'Prev close отсутствует только у первой даты инструмента',
+ $$SELECT (count(*) FILTER(WHERE prev_close_price IS NULL)=count(DISTINCT secid))::text FROM m_razhin.gpm_16_prev_close$$,$$SELECT true::text$$),
+('data_marts',17,2,'Price changes формульно согласованы',
+ $$SELECT bool_and(abs_change_amt=close_price-prev_close_price AND (prev_close_price=0 OR abs(pct_change_pct-100*(close_price-prev_close_price)/prev_close_price)<0.01))::text FROM m_razhin.gpm_17_price_change WHERE prev_close_price IS NOT NULL$$,$$SELECT true::text$$),
+('data_marts',18,2,'Monthly grain уникален',
+ $$SELECT (count(*)=count(DISTINCT (report_month,secid)) AND min(trading_days_cnt)>0)::text FROM m_razhin.gpm_18_monthly$$,$$SELECT true::text$$),
+('data_marts',19,2,'Seasonality grain уникален',
+ $$SELECT (count(*)=count(DISTINCT (secid,month_num)) AND min(active_days_cnt)>0)::text FROM m_razhin.gpm_19_seasonality$$,$$SELECT true::text$$),
+('data_marts',20,2,'Quality equation согласована',
+ $$SELECT bool_and(snapshot_rows_cnt=active_rows_cnt+zero_trade_rows_cnt AND distinct_instruments_cnt>0 AND load_dttm IS NOT NULL)::text FROM m_razhin.gpm_20_data_quality$$,$$SELECT true::text$$),
+('data_marts',21,2,'SCD2 security корректна',
+ $$SELECT (overlap_count=0 AND multiple_current_keys=0 AND invalid_intervals=0)::text FROM m_razhin.gpm_21_scd_security$$,$$SELECT true::text$$),
+('data_marts',22,2,'As-of join однозначен',
+ $$SELECT (fact_rows=matched_rows AND unmatched_rows=0 AND ambiguous_rows=0)::text FROM m_razhin.gpm_22_asof_join$$,$$SELECT true::text$$),
+('data_marts',23,2,'Late trade пересчитал один день',
+ $$SELECT (affected_days=1 AND new_trade_count=old_trade_count+1 AND reconciliation_ok)::text FROM m_razhin.gpm_23_late_trade$$,$$SELECT true::text$$),
+('data_marts',24,2,'Daily increment идемпотентен',
+ $$SELECT (first_count=second_count AND duplicate_grains=0 AND published_days=1)::text FROM m_razhin.gpm_24_increment_daily$$,$$SELECT true::text$$),
+('data_marts',25,2,'Monthly increment ограничен одним месяцем',
+ $$SELECT (affected_months=1 AND duplicate_grains=0 AND reconciliation_ok)::text FROM m_razhin.gpm_25_increment_monthly$$,$$SELECT true::text$$),
+('data_marts',26,2,'Fact/marts reconciliation полна',
+ $$SELECT (fact_value=daily_value AND daily_value=monthly_value AND missing_groups=0)::text FROM m_razhin.gpm_26_reconciliation$$,$$SELECT true::text$$),
+('data_marts',27,2,'Serving query использует pruning и ограниченный Motion',
+ $$SELECT (partitions_scanned=1 AND motion_count>=0 AND result_rows>0)::text FROM m_razhin.gpm_27_query_plan$$,$$SELECT true::text$$),
+('data_marts',28,2,'Serving view имеет требуемый контракт',
+ $$SELECT (count(*)>0 AND count(*)=count(DISTINCT (trade_session_date,secid,deal_type)))::text FROM m_razhin.gpm_28_serving_view$$,$$SELECT true::text$$),
+('data_marts',29,2,'Publish audit завершён',
+ $$SELECT (status='PUBLISHED' AND version_id IS NOT NULL AND row_count>0 AND published_at IS NOT NULL)::text FROM m_razhin.gpm_29_publish_audit ORDER BY published_at DESC LIMIT 1$$,$$SELECT true::text$$),
+('data_marts',30,2,'Showcase документирует все marts',
+ $$SELECT (count(*)>=8 AND bool_and(mart_name IS NOT NULL AND grain IS NOT NULL AND sla IS NOT NULL AND policy IS NOT NULL AND status='READY'))::text FROM m_razhin.gpm_30_showcase$$,$$SELECT true::text$$);

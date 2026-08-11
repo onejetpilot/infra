@@ -3,13 +3,15 @@ from pathlib import Path
 
 import nbformat as nbf
 
+from function_solutions import SOLUTIONS
+
 
 SCRIPT_PATH = Path(__file__).resolve()
 COURSE_ROOT = SCRIPT_PATH.parent.parent
 OUTPUT = Path(
     os.environ.get(
         "SQL_COURSE_OUTPUT",
-        COURSE_ROOT / "notebooks" / "01_Functions_30_Tasks.ipynb",
+        COURSE_ROOT / "notebooks" / "05_Functions_30_Tasks.ipynb",
     )
 )
 
@@ -316,6 +318,16 @@ for number, (signature, prompt, hint) in enumerate(tasks, start=1):
                 "%%sql\n"
                 "-- Выполните ручной вызов вашей функции здесь.\n"
                 "-- SELECT training.fn_...(...);\n"
+            ),
+            *(
+                [md(
+                    "<details><summary><strong>Эталонное решение и разбор</strong></summary>\n\n"
+                    "Откройте этот блок после самостоятельной попытки.\n\n"
+                    f"```sql\n{SOLUTIONS[number][0]}\n```\n\n"
+                    f"**Что делаем:** {SOLUTIONS[number][1]}\n\n"
+                    "Выполните DDL, вручную вызовите функцию и затем запустите checker.\n\n"
+                    "</details>"
+                )] if number in SOLUTIONS else []
             ),
             code(
                 "%%sql\n"

@@ -1,0 +1,5 @@
+1,valid,2025-01-01
+oops,bad_integer,2025-01-02
+2,valid,2025-01-03
+3,bad_date,not-a-date
+4,valid,2025-01-04

@@ -14,5 +14,12 @@ check "15. Zeppelin HTTP" curl -fsS http://localhost:8080/api/version
 check "16. Notebook volume mounted" docker compose exec -T zeppelin test -w /opt/zeppelin/notebook
 check "17. JupyterLab HTTP" docker compose exec -T jupyter bash -c 'curl -fsS "http://localhost:8888/api/status?token=$JUPYTER_TOKEN"'
 check "18. Jupyter notebooks mounted" docker compose exec -T jupyter test -w /opt/lab/notebooks
+check "19. Hadoop course mounted" docker compose exec -T jupyter test -r /opt/lab/hadoop-training/check_task.py
+check "20. Spark course mounted" docker compose exec -T jupyter test -r /opt/lab/spark-training/check_task.py
+check "21. Data catalog mounted" docker compose exec -T jupyter test -r /opt/lab/notebooks/data-catalog/00_Data_Catalog_and_Schemas.ipynb
+check "22. Kafka task PostgreSQL" docker compose exec -T kafka-task-db pg_isready -U kafka_user -d kafka_task
+check "23. Kafka topic" docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic task_events_log_razhin
+check "24. Airflow HTTP" curl -fsS http://localhost:8090/health
+check "25. Airflow DAG directory" docker compose exec -T airflow-webserver test -d /opt/airflow/dags
 printf '\nИТОГ: PASS=%d FAIL=%d\n' "$pass" "$fail"
 (( fail == 0 ))
