@@ -27,6 +27,8 @@ RUN python3 -m pip install --no-cache-dir \
       "psycopg2-binary==2.9.10" \
       "SQLAlchemy==2.0.36" \
       "jupysql==0.10.16" \
+      "clickhouse-connect==0.8.18" \
+      "clickhouse-driver==0.2.9" \
  && python_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')" \
  && py4j_zip="$(find /opt/spark/python/lib -name 'py4j-*.zip' -print -quit)" \
  && printf '/opt/spark/python\n%s\n' "$py4j_zip" > "$python_site/pyspark.pth"
